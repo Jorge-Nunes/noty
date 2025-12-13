@@ -66,6 +66,10 @@ class EvolutionService {
       formattedPhone = '55' + formattedPhone;
     }
 
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     for (let attempt = 1; attempt <= retries + 1; attempt++) {
       try {
         const result = await this.makeRequest(`/message/sendText/${this.instance}`, {
@@ -146,6 +150,10 @@ class EvolutionService {
   }
 
   async getInstanceStatus() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     const result = await this.makeRequest(`/instance/connectionState/${this.instance}`, {
       method: 'GET'
     });
@@ -158,6 +166,10 @@ class EvolutionService {
   }
 
   async getInstanceInfo() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     const result = await this.makeRequest(`/instance/fetchInstances`, {
       method: 'GET'
     });
