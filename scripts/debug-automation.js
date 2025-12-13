@@ -13,7 +13,7 @@ async function debug() {
         console.log('\n1. Verificando Configurações:');
         const configs = await Config.findAll({
             where: {
-                key: ['traccar_enabled', 'auto_block_enabled', 'traccar_url', 'traccar_token', 'block_after_count']
+                key: ['traccar_enabled', 'auto_block_enabled', 'traccar_url', 'traccar_token', 'block_after_count', 'evolution_api_url', 'evolution_api_key', 'evolution_instance']
             }
         });
 

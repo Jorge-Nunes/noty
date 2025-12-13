@@ -91,7 +91,7 @@ class TraccarNotificationService {
         phone_number: client.mobile_phone,
         message_content: message,
         status: result.success ? 'sent' : 'failed',
-        error_message: result.success ? null : result.error
+        error_message: result.success ? null : (typeof result.error === 'object' ? JSON.stringify(result.error) : String(result.error))
       });
 
       if (result.success) {
@@ -154,7 +154,7 @@ class TraccarNotificationService {
         phone_number: client.mobile_phone,
         message_content: message,
         status: result.success ? 'sent' : 'failed',
-        error_message: result.success ? null : result.error
+        error_message: result.success ? null : (typeof result.error === 'object' ? JSON.stringify(result.error) : String(result.error))
       });
 
       if (result.success) {
@@ -219,7 +219,7 @@ class TraccarNotificationService {
         phone_number: client.mobile_phone,
         message_content: message,
         status: result.success ? 'sent' : 'failed',
-        error_message: result.success ? null : result.error
+        error_message: result.success ? null : (typeof result.error === 'object' ? JSON.stringify(result.error) : String(result.error))
       });
 
       if (result.success) {
@@ -241,12 +241,12 @@ class TraccarNotificationService {
    */
   processTemplate(template, variables) {
     let processedTemplate = template;
-    
+
     for (const [key, value] of Object.entries(variables)) {
       const regex = new RegExp(`{${key}}`, 'g');
       processedTemplate = processedTemplate.replace(regex, value);
     }
-    
+
     return processedTemplate;
   }
 
@@ -325,7 +325,7 @@ class TraccarNotificationService {
 
         if (stat.status === 'sent') {
           result.successful_notifications += count;
-          
+
           switch (stat.message_type) {
             case 'traccar_block':
               result.blocks_notified += count;
