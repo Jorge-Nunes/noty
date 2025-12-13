@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { sequelize, Config, Client, Payment, TraccarIntegration } = require('../models');
 const TraccarAutomationService = require('../services/TraccarAutomationService');
 const AutomationService = require('../services/AutomationService');
