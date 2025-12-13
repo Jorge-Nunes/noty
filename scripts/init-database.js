@@ -1,13 +1,13 @@
-const { 
-  sequelize, 
-  User, 
-  Client, 
-  Payment, 
-  Config, 
-  MessageLog, 
-  AutomationLog, 
+const {
+  sequelize,
+  User,
+  Client,
+  Payment,
+  Config,
+  MessageLog,
+  AutomationLog,
   MessageTemplate,
-  WebhookLog 
+  WebhookLog
 } = require('../models');
 const bcrypt = require('bcryptjs');
 const TemplateService = require('../services/TemplateService');
@@ -24,16 +24,17 @@ async function initializeDatabase() {
 
     // Sync all models (ensure all tables are created)
     console.log('📋 Criando/verificando tabelas do banco de dados...');
-    
+
     // Force sync to ensure all tables and associations are properly created
     await sequelize.sync({ force: false, alter: false });
-    
+
     // Verify all tables exist
     const tableNames = [
-      'users', 'clients', 'payments', 'configs', 
-      'message_logs', 'automation_logs', 'message_templates', 'webhook_logs'
+      'users', 'clients', 'payments', 'configs',
+      'message_logs', 'automation_logs', 'message_templates', 'webhook_logs',
+      'traccar_integrations'
     ];
-    
+
     for (const tableName of tableNames) {
       const [results] = await sequelize.query(`
         SELECT EXISTS (
@@ -41,20 +42,20 @@ async function initializeDatabase() {
           WHERE table_name = '${tableName}'
         );
       `);
-      
+
       if (results[0].exists) {
         console.log(`✅ Tabela '${tableName}' verificada`);
       } else {
         console.warn(`⚠️  Tabela '${tableName}' não encontrada`);
       }
     }
-    
+
     console.log('✅ Modelos sincronizados e tabelas verificadas');
 
     // Create default admin user if not exists
     const adminEmail = 'admin@noty.com';
     let adminUser = await User.findOne({ where: { email: adminEmail } });
-    
+
     if (!adminUser) {
       adminUser = await User.create({
         name: 'Administrator',
@@ -86,7 +87,7 @@ async function initializeDatabase() {
         type: 'string',
         category: 'asaas'
       },
-      
+
       // Evolution API configurations
       {
         key: 'evolution_api_url',
@@ -109,7 +110,7 @@ async function initializeDatabase() {
         type: 'string',
         category: 'evolution'
       },
-      
+
       // Automation configurations
       {
         key: 'warning_days',
@@ -132,7 +133,7 @@ async function initializeDatabase() {
         type: 'number',
         category: 'automation'
       },
-      
+
       // General configurations
       {
         key: 'company_name',
@@ -162,19 +163,19 @@ async function initializeDatabase() {
         where: { key: configData.key },
         defaults: configData
       });
-      
+
       if (created) {
         console.log(`✅ Configuração criada: ${configData.key}`);
       }
     }
 
     console.log('✅ Configurações padrão inicializadas');
-    
+
     // Initialize default message templates
     console.log('🔄 Inicializando templates de mensagens...');
     await TemplateService.initializeDefaultTemplates();
     console.log('✅ Templates de mensagens inicializados');
-    
+
     // Initialize Traccar configurations
     try {
       await initTraccarConfigs();
@@ -191,7 +192,7 @@ async function initializeDatabase() {
     console.log('3. Execute a sincronização manual para importar dados');
     console.log('4. Configure os horários de automação conforme necessário');
     console.log('');
-    
+
   } catch (error) {
     console.error('❌ Erro ao inicializar banco de dados:', error);
     throw error;
