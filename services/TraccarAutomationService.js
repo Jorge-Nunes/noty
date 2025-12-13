@@ -169,7 +169,7 @@ class TraccarAutomationService {
       }
 
       // Busca clientes bloqueados que podem ser desbloqueados
-      const candidatesForUnblocking = await this.findUnblockingCandidates();
+      const candidatesForUnblocking = await this.findUnblockingCandidates(rules);
 
       logger.info(`Encontrados ${candidatesForUnblocking.length} candidatos para desbloqueio`);
 
@@ -256,7 +256,7 @@ class TraccarAutomationService {
   /**
    * Busca clientes candidatos ao desbloqueio
    */
-  async findUnblockingCandidates() {
+  async findUnblockingCandidates(rules) {
     try {
       // Busca integrações de clientes bloqueados
       const integrations = await TraccarIntegration.findAll({
@@ -278,10 +278,13 @@ class TraccarAutomationService {
         }]
       });
 
-      // Filtra clientes que não têm mais pagamentos em atraso
+      // Filtra clientes que estão abaixo do limite de bloqueio
       const candidates = integrations.filter(integration => {
         const overduePayments = integration.client.payments || [];
-        return overduePayments.length === 0;
+        const overdueCount = overduePayments.length;
+
+        // Se a regra é bloquear após X, desbloqueia se tiver menos que X
+        return overdueCount < rules.block_after_count;
       });
 
       return candidates.map(integration => ({
@@ -576,8 +579,8 @@ class TraccarAutomationService {
         }
       });
 
-      if (overdueCount === 0) {
-        logger.info(`Pagamento confirmado para cliente bloqueado ${integration.client.name}. Iniciando desbloqueio imediato.`);
+      if (overdueCount < rules.block_after_count) {
+        logger.info(`Cliente ${integration.client.name} tem ${overdueCount} pagamentos em atraso (limite: ${rules.block_after_count}). Iniciando desbloqueio.`);
 
         // Inicializa TraccarService se necessário
         await TraccarService.initialize();
