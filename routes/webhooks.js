@@ -5,6 +5,7 @@ const { sequelize } = require('../config/database');
 const { Payment, Client, MessageLog, WebhookLog } = require('../models');
 const EvolutionService = require('../services/EvolutionService');
 const TemplateService = require('../services/TemplateService');
+const TraccarAutomationService = require('../services/TraccarAutomationService');
 const { authMiddleware } = require('../middleware/auth');
 const logger = require('../utils/logger');
 
@@ -15,23 +16,23 @@ const verifyAsaasSignature = (req, res, next) => {
   try {
     const signature = req.headers['asaas-signature'];
     const payload = JSON.stringify(req.body);
-    
+
     // For development, skip signature verification if not configured
     if (!process.env.ASAAS_WEBHOOK_SECRET) {
       logger.warn('Webhook signature verification skipped - ASAAS_WEBHOOK_SECRET not configured');
       return next();
     }
-    
+
     const expectedSignature = crypto
       .createHmac('sha256', process.env.ASAAS_WEBHOOK_SECRET)
       .update(payload)
       .digest('hex');
-    
+
     if (!signature || signature !== expectedSignature) {
       logger.warn('Invalid webhook signature:', { signature, expectedSignature });
       return res.status(401).json({ error: 'Invalid signature' });
     }
-    
+
     next();
   } catch (error) {
     logger.error('Webhook signature verification error:', error);
@@ -43,12 +44,12 @@ const verifyAsaasSignature = (req, res, next) => {
 router.post('/asaas', verifyAsaasSignature, async (req, res) => {
   const startTime = Date.now();
   let webhookLog = null;
-  
+
   try {
     const { event, payment } = req.body;
-    
+
     logger.info('Received Asaas webhook:', { event, paymentId: payment?.id });
-    
+
     if (!event || !payment) {
       return res.status(400).json({ error: 'Invalid webhook payload' });
     }
@@ -84,7 +85,7 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
 
     if (!dbPayment) {
       logger.warn('Payment not found or client notifications disabled:', payment.id);
-      
+
       // Log webhook even if payment not found
       await WebhookLog.create({
         event_type: event,
@@ -97,7 +98,7 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
         ip_address: req.ip,
         user_agent: req.get('User-Agent')
       });
-      
+
       return res.json({ success: true, message: 'Payment not found or notifications disabled' });
     }
 
@@ -113,27 +114,27 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
       case 'PAYMENT_RECEIVED':
         await handlePaymentReceived(dbPayment, 'payment_received');
         break;
-        
+
       case 'PAYMENT_CONFIRMED':
         await handlePaymentReceived(dbPayment, 'payment_confirmed');
         break;
-        
+
       case 'PAYMENT_OVERDUE':
         await handlePaymentOverdue(dbPayment);
         break;
-        
+
       case 'PAYMENT_DELETED':
         await handlePaymentDeleted(dbPayment);
         break;
-        
+
       case 'PAYMENT_CREATED':
         await handlePaymentCreated(dbPayment);
         break;
-        
+
       case 'PAYMENT_UPDATED':
         await handlePaymentUpdated(dbPayment);
         break;
-        
+
       default:
         logger.info('Unhandled webhook event:', event);
     }
@@ -148,7 +149,7 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
 
   } catch (error) {
     logger.error('Webhook processing error:', error);
-    
+
     // Update webhook log with error
     if (webhookLog) {
       const processingTime = Date.now() - startTime;
@@ -158,7 +159,7 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
         error_details: { error: error.message, stack: error.stack }
       });
     }
-    
+
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
@@ -166,11 +167,11 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
 async function handlePaymentReceived(payment, templateType) {
   let messageSent = false;
   let messageType = templateType;
-  
+
   try {
     const client = payment.client;
     const phoneNumber = client.mobile_phone || client.phone;
-    
+
     if (!phoneNumber) {
       logger.warn('No phone number for payment received notification:', payment.asaas_id);
       return;
@@ -237,7 +238,7 @@ async function handlePaymentReceived(payment, templateType) {
 
     // Update webhook log with message info
     const webhookLog = await WebhookLog.findOne({
-      where: { 
+      where: {
         payment_id: payment.id,
         event_type: templateType === 'payment_received' ? 'PAYMENT_RECEIVED' : 'PAYMENT_CONFIRMED'
       },
@@ -250,6 +251,14 @@ async function handlePaymentReceived(payment, templateType) {
         message_type: messageType,
         response_data: result.data
       });
+    }
+
+    // Trigger immediate unblock check
+    if (templateType === 'payment_confirmed' || templateType === 'payment_received') {
+      // Run in background to not block response
+      TraccarAutomationService.checkAndUnblockClient(client.id).catch(err =>
+        logger.error('Error in immediate unblock check:', err)
+      );
     }
 
   } catch (error) {
@@ -270,7 +279,7 @@ async function handlePaymentOverdue(payment) {
 async function handlePaymentDeleted(payment) {
   try {
     // Mark as inactive instead of deleting
-    await payment.update({ 
+    await payment.update({
       is_active: false,
       last_sync: new Date()
     });
@@ -302,10 +311,10 @@ async function handlePaymentUpdated(payment) {
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
     const { period = '24h' } = req.query;
-    
+
     let dateFilter;
     const now = new Date();
-    
+
     switch (period) {
       case '24h':
         dateFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -454,7 +463,7 @@ router.get('/activities', authMiddleware, async (req, res) => {
     const formattedActivities = activities.map(activity => {
       const timeDiff = new Date() - new Date(activity.created_at);
       let timeAgo;
-      
+
       if (timeDiff < 60000) {
         timeAgo = 'há poucos segundos';
       } else if (timeDiff < 3600000) {
@@ -496,8 +505,8 @@ router.get('/activities', authMiddleware, async (req, res) => {
 
 // Health check endpoint
 router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     service: 'noty-webhooks'
   });

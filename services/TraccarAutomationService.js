@@ -539,6 +539,59 @@ class TraccarAutomationService {
       throw error;
     }
   }
+  /**
+   * Verifica e desbloqueia um cliente específico se elegível
+   * Usado principalmente por webhooks de pagamento
+   */
+  async checkAndUnblockClient(clientId) {
+    try {
+      // Verifica se automação está habilitada
+      const isEnabled = await this.isAutomationEnabled();
+      if (!isEnabled) return;
+
+      // Busca regras
+      const rules = await this.getAutomationRules();
+      if (!rules || !rules.unblock_on_payment) return;
+
+      // Busca integração do cliente se estiver bloqueada
+      const integration = await TraccarIntegration.findOne({
+        where: {
+          client_id: clientId,
+          is_blocked: true,
+          traccar_user_id: { [Op.ne]: null }
+        },
+        include: [{
+          model: Client,
+          as: 'client'
+        }]
+      });
+
+      if (!integration) return; // Cliente não está bloqueado ou sem integração
+
+      // Verifica se ainda existem pagamentos vencidos
+      const overdueCount = await Payment.count({
+        where: {
+          client_id: clientId,
+          status: 'OVERDUE'
+        }
+      });
+
+      if (overdueCount === 0) {
+        logger.info(`Pagamento confirmado para cliente bloqueado ${integration.client.name}. Iniciando desbloqueio imediato.`);
+
+        // Inicializa TraccarService se necessário
+        await TraccarService.initialize();
+
+        await this.unblockClient({
+          integration,
+          client: integration.client
+        });
+      }
+
+    } catch (error) {
+      logger.error(`Erro ao verificar desbloqueio imediato para cliente ${clientId}:`, error);
+    }
+  }
 }
 
 module.exports = new TraccarAutomationService();
