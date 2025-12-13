@@ -1,0 +1,4 @@
+
+server=localhost:5432
+user=admin
+password:admin

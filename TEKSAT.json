@@ -1,0 +1,1091 @@
+{
+  "name": "TEKSAT",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ $('Dados').item.json['Asaas Produção'] }}/customers",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Dados').item.json['Token de acesso'] }}"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "offset",
+                    "value": "={{ $pageCount * 100 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.hasMore === false }}",
+              "requestInterval": 3000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        976,
+        496
+      ],
+      "id": "2e36bfe6-e9d6-40f0-b4d3-3a0b68e0995c",
+      "name": "Busca clientes asaas"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json['Asaas Produção'] }}/payments",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "status",
+              "value": "PENDING"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json['Token de acesso'] }}"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "offset",
+                    "value": "={{ $pageCount * 100 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.hasMore === false }}",
+              "requestInterval": 3000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        736,
+        496
+      ],
+      "id": "c65c8154-06f1-430c-9bbd-f3e1c1d48895",
+      "name": "Buscar pagamentos asaas"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega os itens de entrada dos nós anteriores\nconst pagamentosItens = $items('Buscar pagamentos asaas');\nconst clientesItens = $items('Busca clientes asaas');\n\n// Extrai a lista de pagamentos e a lista de clientes do corpo da resposta da API\nconst listaPagamentos = pagamentosItens.flatMap(item => item.json.data);\nconst listaClientes = clientesItens.flatMap(item => item.json.data);\n\n// --- Passo 1: Otimizar a busca de clientes ---\nconst mapaClientes = {};\nfor (const cliente of listaClientes) {\n  mapaClientes[cliente.id] = cliente;\n}\n\n// --- Passo 2: Juntar e formatar os dados ---\nconst resultadoFinal = [];\n\n// Preservar pairedItem do primeiro item de pagamento para referência\nconst referencePairedItem = pagamentosItens[0]?.pairedItem;\n\nfor (const pagamento of listaPagamentos) {\n  const customerId = pagamento.customer;\n  const infoCliente = mapaClientes[customerId];\n  \n  // Formata as datas para DD-MM-AAAA\n  const dataCriacaoFormatada = pagamento.dateCreated.split('-').reverse().join('-');\n  const dataVencimentoFormatada = pagamento.dueDate.split('-').reverse().join('-');\n\n  let itemCombinado;\n\n  if (infoCliente) {\n    itemCombinado = {\n      // Dados do Pagamento\n      id_cobranca: pagamento.id,\n      data_criacao: dataCriacaoFormatada,\n      valor: pagamento.value,\n      vencimento: dataVencimentoFormatada,\n      status: pagamento.status,\n      link_fatura: pagamento.invoiceUrl,\n      link_boleto: pagamento.bankSlipUrl,\n      nosso_numero: pagamento.nossoNumero,\n\n      // Dados do Cliente\n      cliente: {\n        id: infoCliente.id,\n        nome: infoCliente.name,\n        email: infoCliente.email,\n        // Garante que o celular é sempre uma string ou null\n        celular: infoCliente.mobilePhone ? String(infoCliente.mobilePhone) : null,\n        cpfCnpj: infoCliente.cpfCnpj\n      }\n    };\n  } else {\n    // Se o cliente não for encontrado, cria um item com dados básicos\n    itemCombinado = {\n      id_cobranca: pagamento.id,\n      data_criacao: dataCriacaoFormatada,\n      valor: pagamento.value,\n      vencimento: dataVencimentoFormatada,\n      status: pagamento.status,\n      link_fatura: pagamento.invoiceUrl,\n      link_boleto: pagamento.bankSlipUrl,\n      nosso_numero: pagamento.nossoNumero,\n\n      cliente: {\n        id: customerId,\n        nome: 'Cliente Desconhecido',\n        email: null,\n        celular: null,\n        cpfCnpj: null\n      }\n    };\n  }\n  \n  resultadoFinal.push(itemCombinado);\n}\n\n// Retorna o resultado para o n8n com pairedItem preservado\nreturn resultadoFinal.map(item => ({ \n  json: item,\n  pairedItem: referencePairedItem // Preserva os metadados de origem\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        496
+      ],
+      "id": "d8828071-d830-4c5d-972a-e6b08a718a21",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.vencimento }}",
+                    "rightValue": "={{ $now.format('dd-MM-yyyy') }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "9be2f042-a1a4-4101-b5df-edf79100e0b5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Vence hoje"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ea4e6e95-f53a-4f96-8e48-dd6db15a9416",
+                    "leftValue": "={{ Math.ceil(\n    (new Date($json.vencimento.split('-').reverse().join('-')).getTime() - Date.now())\n    / (1000 * 60 * 60 * 24)\n  ) === Number($('Dados').first().json['Dias de aviso'])\n}}",
+                    "rightValue": "={{ \n  (new Date($json.vencimento) - new Date()) / (1000 * 60 * 60 * 24) > $('Dados').item.json['Dias de aviso'] \n}}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Aviso"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Fim"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1424,
+        496
+      ],
+      "id": "029a29d3-8b8e-451f-b24c-2dfce6ecef7e",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6e300aaf-184c-486c-a4d5-8f671ac29832",
+              "name": "=mensagem",
+              "value": "=🚗💨 Olá, aqui é da *TEKSAT Rastreamento Veicular*!\nNotamos que sua fatura vence *hoje* 📅.\nPara evitar juros e manter seu rastreamento ativo, faça o pagamento o quanto antes.\n\n🔗 Link da fatura: {{ $json.link_fatura }}\n🔗 Link da boleto: {{ $json.link_boleto }}\n💰 Valor: {{ $json.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}\n📆 Vencimento: {{ $json.vencimento }}\n\nQualquer dúvida, nossa equipe está à disposição! 🤝",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1776,
+        128
+      ],
+      "id": "99c93d7a-c7a9-4acf-9d46-0f65f910e2ad",
+      "name": "Mensagem vencimento hoje"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6e300aaf-184c-486c-a4d5-8f671ac29832",
+              "name": "mensagem",
+              "value": "=🔔 Olá, tudo bem? Somos da *TEKSAT Rastreamento Veicular*.\nFaltam apenas {{ $('Dados').item.json['Dias de aviso'] }} dia(s) para o vencimento da sua fatura 🗓️.\nEvite a suspensão do serviço e mantenha sua proteção ativa! 🛡️\n\n🔗 Link da fatura: {{ $json.link_fatura }}\n🔗 Link da boleto: {{ $json.link_boleto }}\n💰 Valor: {{ $json.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}\n🗓️ Vencimento: {{ $json.vencimento }}\n\nEstamos aqui para ajudar no que precisar! 😊",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1776,
+        496
+      ],
+      "id": "fe0698c2-0a4d-461d-b681-c038a4548051",
+      "name": "Mensagem aviso"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        848
+      ],
+      "id": "177f4c24-f729-40b9-9ac6-e8e00e447d87",
+      "name": "Sem envio"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2048,
+        128
+      ],
+      "id": "cc5ac47e-c54a-4a0b-a5e7-96821fedbb9d",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2048,
+        496
+      ],
+      "id": "b67c353c-9c86-4aa9-a46d-da8e75f88f7c",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Dados').item.json['URL Evolution'] }}/message/sendText/{{ $('Dados').item.json.Instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Dados').item.json.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ '+55' + $('Switch').item.json.cliente.celular }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "81cd7e08-02cb-4016-bf5f-c773453ff1a2",
+      "name": "Envia aviso a vencer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2528,
+        528
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Dados').item.json['URL Evolution'] }}/message/sendText/{{ $('Dados').item.json.Instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Dados').item.json.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ '+55' + $('Switch').item.json.cliente.celular }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "110726ee-3c72-43a4-b20e-60902a6d2e75",
+      "name": "vencimento hoje",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2528,
+        144
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "height": 1060,
+        "width": 2760,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2f959b29-504f-4669-96ea-9599b6e99ebe",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Dados1').item.json['Asaas Produção'] }}/customers",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Dados1').item.json['Token de acesso'] }}"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "offset",
+                    "value": "={{ $pageCount * 100 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.hasMore === false }}",
+              "requestInterval": 3000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        944,
+        1520
+      ],
+      "id": "25cb5898-c593-4248-9989-91e1081d4d87",
+      "name": "Busca clientes asaas1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json['Asaas Produção'] }}/payments",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "status",
+              "value": "OVERDUE"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json['Token de acesso'] }}"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "offset",
+                    "value": "={{ $pageCount * 100 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.hasMore === false }}",
+              "requestInterval": 3000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        1520
+      ],
+      "id": "6a439012-aab9-467b-991e-fd730d83b7ae",
+      "name": "Buscar pagamentos asaas1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "14497508-4f37-45ff-8b02-f826fed5199a",
+              "name": "Token de acesso",
+              "value": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjMzNWViMzAzLTRkZWEtNDNhMy1hNTY4LWY0NjhmNzJlNzliNzo6JGFhY2hfNGQyZDdiMjYtNzVjOS00YmMyLWI1NzQtZTRiNjY4NzU4NjA4",
+              "type": "string"
+            },
+            {
+              "id": "d19114a4-6717-4db9-9655-33528024ca8b",
+              "name": "Asaas sandbox",
+              "value": "https://api-sandbox.asaas.com/v3",
+              "type": "string"
+            },
+            {
+              "id": "5dbf928b-1c46-482a-824c-f9805d97c09b",
+              "name": "Asaas Produção",
+              "value": "https://api-sandbox.asaas.com/v3",
+              "type": "string"
+            },
+            {
+              "id": "688a3092-23d5-4f31-9e35-b48ee2d83088",
+              "name": "Dias de aviso",
+              "value": "2",
+              "type": "string"
+            },
+            {
+              "id": "6e300aaf-184c-486c-a4d5-8f671ac29832",
+              "name": "URL Evolution",
+              "value": "http://api.evo.dedyn.io:8081",
+              "type": "string"
+            },
+            {
+              "id": "742e7035-4cec-48d8-aad3-2d534b4e9eb0",
+              "name": "Instancia",
+              "value": "teste",
+              "type": "string"
+            },
+            {
+              "id": "ee00622f-aaab-419c-b89c-401f67a0c835",
+              "name": "apikey",
+              "value": "EE38EB9DE58B-4BA6-8449-C7AECAAD17B6",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        1520
+      ],
+      "id": "9b0d68b0-bd73-4c78-8bc8-f6af352d523a",
+      "name": "Dados1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega os itens de entrada dos nós anteriores\nconst pagamentosItens = $items('Buscar pagamentos asaas1');   // No \"Code\", use 'Buscar pagamentos asaas'\nconst clientesItens   = $items('Busca clientes asaas1');      // No \"Code\", use 'Busca clientes asaas'\n\n// Extrai a lista de pagamentos e a lista de clientes do corpo da resposta da API\nconst listaPagamentos = pagamentosItens.flatMap(item => (item.json && item.json.data) ? item.json.data : []);\nconst listaClientes   = clientesItens.flatMap(item => (item.json && item.json.data) ? item.json.data : []);\n\n// --- Passo 1: Otimizar a busca de clientes ---\nconst mapaClientes = Object.create(null);\nfor (const cliente of listaClientes) {\n  if (cliente && cliente.id) mapaClientes[cliente.id] = cliente;\n}\n\n// --- Utilitário de data (YYYY-MM-DD -> DD-MM-YYYY) ---\nfunction formatDate(iso) {\n  if (!iso || typeof iso !== 'string') return null;\n  const p = iso.split('-');\n  if (p.length !== 3) return iso;\n  return [p[2], p[1], p[0]].join('-');\n}\n\n// --- Passo 2: Juntar e formatar os dados ---\nconst resultadoFinal = [];\n\nfor (const pagamento of listaPagamentos) {\n  const customerId  = pagamento.customer;\n  const infoCliente = mapaClientes[customerId];\n\n  const itemCombinado = {\n    id_cobranca: pagamento.id,\n    data_criacao: formatDate(pagamento.dateCreated),\n    valor: pagamento.value,\n    vencimento: formatDate(pagamento.dueDate),\n    status: pagamento.status,\n    link_fatura: pagamento.invoiceUrl,\n    link_boleto: pagamento.bankSlipUrl,\n    nosso_numero: pagamento.nossoNumero,\n    atrasado: pagamento.status === 'OVERDUE',\n    cliente: infoCliente ? {\n      id: infoCliente.id,\n      nome: infoCliente.name,\n      email: infoCliente.email,\n      celular: infoCliente.mobilePhone,\n      cpfCnpj: infoCliente.cpfCnpj\n    } : {\n      id: customerId,\n      nome: 'Desconhecido',\n      email: null,\n      celular: null,\n      cpfCnpj: null\n    }\n  };\n\n  resultadoFinal.push(itemCombinado);\n}\n\n// Retorna o resultado para o n8n\nreturn resultadoFinal.map(item => ({ json: item }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        1520
+      ],
+      "id": "d9bf48a2-58f2-4370-ab80-da05c231294a",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1776,
+        1520
+      ],
+      "id": "f262cfeb-ec14-4fc3-855a-b397a3105a72",
+      "name": "Loop Over Items3"
+    },
+    {
+      "parameters": {
+        "content": "##",
+        "height": 720,
+        "width": 2764,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1216
+      ],
+      "id": "c9e4e85c-ad72-49e8-886c-00fa9545fc6e",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6e300aaf-184c-486c-a4d5-8f671ac29832",
+              "name": "mensagem",
+              "value": "=⚠️ Olá, somos da *TEKSAT Rastreamento Veicular*.\nIdentificamos que sua fatura está *vencida* ⏳.\n\n🗓️ Vencimento: {{ $json.vencimento }}\n💰 Valor: {{ $json.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}\n🔗 Link da fatura: {{ $json.link_fatura }}\n\nPedimos que regularize o pagamento para evitar interrupção no rastreamento 🚗📡.\nSe já tiver efetuado o pagamento, por favor desconsidere esta mensagem.\nConte conosco para qualquer dúvida! 🤝",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1488,
+        1520
+      ],
+      "id": "a57efada-47f3-49fd-8566-d54501115252",
+      "name": "pagamento vencido"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Dados1').item.json['URL Evolution'] }}/message/sendText/{{ $('Dados1').item.json.Instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Dados1').item.json.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ \"55\" +$('Code1').item.json.cliente.celular }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1b4de21a-8334-43a0-a7a5-fb2019417dd0",
+      "name": "Envia pagamento vencido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        1536
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "# PAGAMENTO VENCIDO",
+        "height": 80,
+        "width": 424,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        224,
+        1264
+      ],
+      "id": "0732ae14-703e-4a26-87bf-4cb6f18db20e",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "# AVISO DE PAGAMENTO",
+        "height": 80,
+        "width": 424,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        224,
+        80
+      ],
+      "id": "2786fd2b-3536-4979-82aa-5cf47507faff",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## Alterar dados",
+        "height": 320,
+        "width": 180,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        400
+      ],
+      "id": "51fa8c24-348d-486e-8b68-11983412976b",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## Alterar dados",
+        "height": 320,
+        "width": 180,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        464,
+        1440
+      ],
+      "id": "59ae3a69-63cb-4b33-abb6-b8d6a2db96a1",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "14497508-4f37-45ff-8b02-f826fed5199a",
+              "name": "Token de acesso",
+              "value": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjMzNWViMzAzLTRkZWEtNDNhMy1hNTY4LWY0NjhmNzJlNzliNzo6JGFhY2hfNGQyZDdiMjYtNzVjOS00YmMyLWI1NzQtZTRiNjY4NzU4NjA4",
+              "type": "string"
+            },
+            {
+              "id": "d19114a4-6717-4db9-9655-33528024ca8b",
+              "name": "Asaas sandbox",
+              "value": "https://api-sandbox.asaas.com/v3",
+              "type": "string"
+            },
+            {
+              "id": "5dbf928b-1c46-482a-824c-f9805d97c09b",
+              "name": "Asaas Produção",
+              "value": "https://api-sandbox.asaas.com/v3",
+              "type": "string"
+            },
+            {
+              "id": "688a3092-23d5-4f31-9e35-b48ee2d83088",
+              "name": "Dias de aviso",
+              "value": "2",
+              "type": "string"
+            },
+            {
+              "id": "6e300aaf-184c-486c-a4d5-8f671ac29832",
+              "name": "URL Evolution",
+              "value": "http://api.evo.dedyn.io:8081",
+              "type": "string"
+            },
+            {
+              "id": "742e7035-4cec-48d8-aad3-2d534b4e9eb0",
+              "name": "Instancia",
+              "value": "teste",
+              "type": "string"
+            },
+            {
+              "id": "ee00622f-aaab-419c-b89c-401f67a0c835",
+              "name": "apikey",
+              "value": "EE38EB9DE58B-4BA6-8449-C7AECAAD17B6",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        496
+      ],
+      "id": "f73e73d6-a3be-4b62-8a78-53f26a6eef63",
+      "name": "Dados"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        496
+      ],
+      "id": "0e832789-ff5c-42d6-8fad-c96ac1d9f54c",
+      "name": "Diario - aviso e vence hoje, roda as 10:00"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        1520
+      ],
+      "id": "e1de5428-fed9-4222-98a1-a63a96c9b5fe",
+      "name": "Pagamento vencido diario, roda as 11:00"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Buscar pagamentos asaas": {
+      "main": [
+        [
+          {
+            "node": "Busca clientes asaas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca clientes asaas": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Mensagem vencimento hoje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensagem aviso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem vencimento hoje": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "vencimento hoje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Envia aviso a vencer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia aviso a vencer": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "vencimento hoje": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem aviso": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca clientes asaas1": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar pagamentos asaas1": {
+      "main": [
+        [
+          {
+            "node": "Busca clientes asaas1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados1": {
+      "main": [
+        [
+          {
+            "node": "Buscar pagamentos asaas1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "pagamento vencido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items3": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Envia pagamento vencido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pagamento vencido": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia pagamento vencido": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados": {
+      "main": [
+        [
+          {
+            "node": "Buscar pagamentos asaas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diario - aviso e vence hoje, roda as 10:00": {
+      "main": [
+        [
+          {
+            "node": "Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pagamento vencido diario, roda as 11:00": {
+      "main": [
+        [
+          {
+            "node": "Dados1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "34bd68f8-1ced-447e-9f2b-92df4bf43aa6",
+  "meta": {
+    "instanceId": "c2912ae776badb6be3b4eb1a754a8d228333c549e35525ed908ea265d49b2194"
+  },
+  "id": "ko17JtVh8sKNld7h",
+  "tags": []
+}
