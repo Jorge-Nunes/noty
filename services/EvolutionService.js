@@ -16,8 +16,8 @@ class EvolutionService {
       const keyConfig = await Config.findOne({ where: { key: 'evolution_api_key' } });
       const instanceConfig = await Config.findOne({ where: { key: 'evolution_instance' } });
 
-      if (!urlConfig || !keyConfig || !instanceConfig) {
-        throw new Error('Configurações da Evolution API não encontradas');
+      if (!urlConfig?.value || !keyConfig?.value || !instanceConfig?.value) {
+        throw new Error('Configurações da Evolution API incompletas (URL, Key ou Instance vazios)');
       }
 
       this.baseURL = urlConfig.value;
@@ -51,10 +51,10 @@ class EvolutionService {
       return { success: true, data: response.data };
     } catch (error) {
       logger.error(`Evolution API error on ${endpoint}:`, error.response?.data || error.message);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error.response?.data || error.message,
-        status: error.response?.status 
+        status: error.response?.status
       };
     }
   }
@@ -90,9 +90,9 @@ class EvolutionService {
         } else {
           // Check if it's a retryable error
           const errorStr = typeof result.error === 'object' ? JSON.stringify(result.error) : String(result.error);
-          const isRetryableError = !errorStr.includes('exists":false') && 
-                                  !errorStr.includes('Bad Request') && 
-                                  !errorStr.includes('instance does not exist');
+          const isRetryableError = !errorStr.includes('exists":false') &&
+            !errorStr.includes('Bad Request') &&
+            !errorStr.includes('instance does not exist');
 
           if (!isRetryableError || attempt > retries) {
             logger.error(`Failed to send message to ${formattedPhone}:`, result.error);
@@ -111,7 +111,7 @@ class EvolutionService {
         }
       } catch (error) {
         logger.error(`Send message attempt ${attempt} error:`, error);
-        
+
         if (attempt > retries) {
           return {
             success: false,
@@ -128,10 +128,10 @@ class EvolutionService {
 
   async sendBulkMessages(messages) {
     const results = [];
-    
+
     for (const messageData of messages) {
       const { phone_number, message } = messageData;
-      
+
       const result = await this.sendMessage(phone_number, message);
       results.push({
         ...messageData,
@@ -183,7 +183,7 @@ class EvolutionService {
         '{{ $json.link_boleto }}': data.payment?.bank_slip_url || '',
         '{{ $json.valor }}': data.payment?.value ? this.formatCurrency(data.payment.value) : '',
         '{{ $json.vencimento }}': data.payment?.due_date ? this.formatDate(data.payment.due_date) : '',
-        '{{ $json.valor.toLocaleString(\'pt-BR\', { style: \'currency\', currency: \'BRL\' }) }}': 
+        '{{ $json.valor.toLocaleString(\'pt-BR\', { style: \'currency\', currency: \'BRL\' }) }}':
           data.payment?.value ? this.formatCurrency(data.payment.value) : ''
       };
 
@@ -200,9 +200,9 @@ class EvolutionService {
   }
 
   formatCurrency(value) {
-    return parseFloat(value).toLocaleString('pt-BR', { 
-      style: 'currency', 
-      currency: 'BRL' 
+    return parseFloat(value).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
     });
   }
 
