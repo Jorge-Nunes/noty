@@ -13,6 +13,15 @@ class TraccarAutomationService {
    * Executa o processo de automação de bloqueio/desbloqueio
    */
   async runAutomation() {
+    const { sequelize } = require('../models');
+    // Distributed lock to avoid concurrent runs across instances
+    const lockKey = 'traccar_automation';
+    const [[lockRow]] = await sequelize.query("SELECT pg_try_advisory_lock(hashtext(:key)) AS locked", { replacements: { key: lockKey } });
+    if (!lockRow || lockRow.locked !== true) {
+      logger.warn('Traccar automation skipped: another instance is running');
+      return;
+    }
+
     if (this.isRunning) {
       logger.warn('TraccarAutomationService já está em execução');
       return;
@@ -50,6 +59,14 @@ class TraccarAutomationService {
     } catch (error) {
       logger.error('Erro na automação Traccar:', error);
     } finally {
+      // Release distributed lock
+      try {
+        const { sequelize } = require('../models');
+        await sequelize.query("SELECT pg_advisory_unlock(hashtext(:key))", { replacements: { key: 'traccar_automation' } });
+      } catch (e) {
+        logger.warn('Failed to release advisory lock for Traccar automation:', e.message);
+      }
+
       this.isRunning = false;
     }
   }

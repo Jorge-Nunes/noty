@@ -1,4 +1,5 @@
 const { MessageTemplate, Client, Config, MessageLog, TraccarIntegration } = require('../models');
+const { Op } = require('sequelize');
 const EvolutionService = require('./EvolutionService');
 const logger = require('../utils/logger');
 
@@ -47,6 +48,20 @@ class TraccarNotificationService {
    * Envia notificação de bloqueio no Traccar
    */
   async sendBlockNotification(clientId, blockData) {
+    // Deduplicate: skip if a similar message was sent or is pending in last 24h
+    const recent = await MessageLog.findOne({
+      where: {
+        client_id: clientId,
+        message_type: 'traccar_block',
+        created_at: { [Op.gte]: new Date(Date.now() - 24*60*60*1000) }
+      },
+      order: [['created_at', 'DESC']]
+    });
+    if (recent) {
+      logger.info(`Deduped traccar_block for client ${clientId} (recent message within 24h)`);
+      return { success: true, message: 'Duplicado suprimido' };
+    }
+
     try {
       if (!this.config?.notifications_enabled) {
         logger.info('Notificações Traccar desabilitadas');
@@ -112,6 +127,20 @@ class TraccarNotificationService {
    * Envia notificação de desbloqueio no Traccar
    */
   async sendUnblockNotification(clientId) {
+    // Deduplicate: skip if a similar message was sent or is pending in last 24h
+    const recent = await MessageLog.findOne({
+      where: {
+        client_id: clientId,
+        message_type: 'traccar_unblock',
+        created_at: { [Op.gte]: new Date(Date.now() - 24*60*60*1000) }
+      },
+      order: [['created_at', 'DESC']]
+    });
+    if (recent) {
+      logger.info(`Deduped traccar_unblock for client ${clientId} (recent message within 24h)`);
+      return { success: true, message: 'Duplicado suprimido' };
+    }
+
     try {
       if (!this.config?.notifications_enabled) {
         logger.info('Notificações Traccar desabilitadas');
@@ -175,6 +204,20 @@ class TraccarNotificationService {
    * Envia aviso antes do bloqueio
    */
   async sendWarningNotification(clientId, warningData) {
+    // Deduplicate before sending: skip if warning sent in last 24h
+    const recent = await MessageLog.findOne({
+      where: {
+        client_id: clientId,
+        message_type: 'traccar_warning',
+        created_at: { [Op.gte]: new Date(Date.now() - 24*60*60*1000) }
+      },
+      order: [['created_at', 'DESC']]
+    });
+    if (recent) {
+      logger.info(`Deduped traccar_warning for client ${clientId} (recent message within 24h)`);
+      return { success: true, message: 'Duplicado suprimido' };
+    }
+
     try {
       if (!this.config?.notifications_enabled) {
         logger.info('Notificações Traccar desabilitadas');

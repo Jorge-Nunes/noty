@@ -10,6 +10,7 @@ class SchedulerService {
   constructor() {
     this.jobs = new Map();
     this.initialized = false;
+    this.runningTypes = new Set();
   }
 
   async initialize() {
@@ -38,8 +39,8 @@ class SchedulerService {
       });
 
       // Schedule daily Asaas sync (midnight)
-      this.scheduleJob('daily_asaas_sync', '0 0 * * *', async () => {
-        await this.executeAutomation('manual_sync', async () => {
+      this.scheduleJob('daily_asaas_sync', '5 0 * * *', async () => {
+        await this.executeAutomation('asaas_daily_sync', async () => {
           return await AsaasService.syncAllData();
         });
       });
@@ -61,7 +62,7 @@ class SchedulerService {
 
       // Schedule hourly pending payments sync
       this.scheduleJob('hourly_payments_sync', '0 * * * *', async () => {
-        await this.executeAutomation('manual_sync', async () => {
+        await this.executeAutomation('payments_hourly_sync', async () => {
           const pendingResult = await AsaasService.syncPayments('PENDING');
           const overdueResult = await AsaasService.syncPayments('OVERDUE');
 
@@ -117,6 +118,13 @@ class SchedulerService {
   }
 
   async executeAutomation(type, handler) {
+    // Concurrency guard (in-memory) to prevent reentrancy per type
+    if (this.runningTypes.has(type)) {
+      logger.warn(`Skipping automation ${type} because a previous execution is still running`);
+      return;
+    }
+    this.runningTypes.add(type);
+
     const automationLog = await AutomationLog.create({
       automation_type: type,
       status: 'started',
@@ -146,6 +154,9 @@ class SchedulerService {
         messages_failed: results.messagesFailed || results.totalMessagesFailed || 0
       });
 
+      // Clear running flag for this type after success
+      this.runningTypes.delete(type);
+
     } catch (error) {
       logger.error(`Scheduled automation ${type} failed:`, error);
 
@@ -158,6 +169,9 @@ class SchedulerService {
         execution_time: Math.floor((new Date() - automationLog.started_at) / 1000),
         completed_at: new Date()
       });
+    } finally {
+      // Ensure running flag is cleared on failure too
+      this.runningTypes.delete(type);
     }
   }
 
