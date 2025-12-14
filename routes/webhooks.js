@@ -309,6 +309,14 @@ async function handlePaymentUpdated(payment) {
 
 // Webhook statistics endpoint
 router.get('/stats', authMiddleware, async (req, res) => {
+  // Extra logs to help diagnose frontend visibility issues
+  try {
+    const hasAuth = !!req.user;
+    const authHeader = req.headers['authorization'] ? 'present' : 'missing';
+    logger.info('GET /webhooks/stats request', { authHeader, hasAuth });
+  } catch (e) {
+    logger.warn('GET /webhooks/stats logging error:', e.message);
+  }
   try {
     const { period = '24h' } = req.query;
 
@@ -438,6 +446,14 @@ router.get('/stats', authMiddleware, async (req, res) => {
 
 // Webhook recent activities endpoint
 router.get('/activities', authMiddleware, async (req, res) => {
+  // Extra logs to help diagnose frontend visibility issues
+  try {
+    const hasAuth = !!req.user;
+    const authHeader = req.headers['authorization'] ? 'present' : 'missing';
+    logger.info('GET /webhooks/activities request', { authHeader, hasAuth });
+  } catch (e) {
+    logger.warn('GET /webhooks/activities logging error:', e.message);
+  }
   try {
     const { limit = 10 } = req.query;
 
