@@ -143,24 +143,26 @@ router.get('/payments-chart', authMiddleware, async (req, res) => {
     const { period = '30' } = req.query;
     const days = parseInt(period);
     const startDate = moment().subtract(days, 'days').format('YYYY-MM-DD');
+    const endDate = moment().format('YYYY-MM-DD');
 
+    // Buscar pagamentos nos últimos 30 dias (incluindo os que vencem hoje)
     const paymentsData = await Payment.findAll({
       where: {
-        created_at: {
-          [Op.gte]: startDate
+        due_date: {
+          [Op.between]: [startDate, endDate]
         }
       },
       attributes: [
-        [Payment.sequelize.fn('DATE', Payment.sequelize.col('created_at')), 'date'],
+        [Payment.sequelize.fn('DATE', Payment.sequelize.col('due_date')), 'date'],
         [Payment.sequelize.fn('COUNT', Payment.sequelize.col('id')), 'count'],
         [Payment.sequelize.fn('SUM', Payment.sequelize.col('value')), 'total_value'],
         'status'
       ],
       group: [
-        Payment.sequelize.fn('DATE', Payment.sequelize.col('created_at')),
+        Payment.sequelize.fn('DATE', Payment.sequelize.col('due_date')),
         'status'
       ],
-      order: [[Payment.sequelize.fn('DATE', Payment.sequelize.col('created_at')), 'ASC']]
+      order: [[Payment.sequelize.fn('DATE', Payment.sequelize.col('due_date')), 'ASC']]
     });
 
     res.json({

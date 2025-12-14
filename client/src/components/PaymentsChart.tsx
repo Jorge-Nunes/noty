@@ -1,13 +1,15 @@
 import React from 'react';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
+  LineChart,
+  Line,
   AreaChart,
   Area,
 } from 'recharts';
@@ -86,21 +88,7 @@ export const PaymentsChart: React.FC<PaymentsChartProps> = ({ data }) => {
   return (
     <Box sx={{ width: '100%', height: 300 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={processedData}>
-          <defs>
-            <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={theme.palette.warning.main} stopOpacity={0.3}/>
-              <stop offset="95%" stopColor={theme.palette.warning.main} stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorOverdue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={theme.palette.error.main} stopOpacity={0.3}/>
-              <stop offset="95%" stopColor={theme.palette.error.main} stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorReceived" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={theme.palette.success.main} stopOpacity={0.3}/>
-              <stop offset="95%" stopColor={theme.palette.success.main} stopOpacity={0}/>
-            </linearGradient>
-          </defs>
+        <BarChart data={processedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis 
             dataKey="date" 
@@ -130,34 +118,25 @@ export const PaymentsChart: React.FC<PaymentsChartProps> = ({ data }) => {
             }}
           />
           <Legend />
-          <Area
-            type="monotone"
-            dataKey="pending"
-            stackId="1"
-            stroke={theme.palette.warning.main}
-            fillOpacity={1}
-            fill="url(#colorPending)"
-            name="Pendentes"
-          />
-          <Area
-            type="monotone"
-            dataKey="overdue"
-            stackId="1"
-            stroke={theme.palette.error.main}
-            fillOpacity={1}
-            fill="url(#colorOverdue)"
-            name="Vencidos"
-          />
-          <Area
-            type="monotone"
+          <Bar
             dataKey="received"
-            stackId="1"
-            stroke={theme.palette.success.main}
-            fillOpacity={1}
-            fill="url(#colorReceived)"
+            stackId="a"
+            fill={theme.palette.success.main}
             name="Recebidos"
           />
-        </AreaChart>
+          <Bar
+            dataKey="pending"
+            stackId="a"
+            fill={theme.palette.warning.main}
+            name="Pendentes"
+          />
+          <Bar
+            dataKey="overdue"
+            stackId="a"
+            fill={theme.palette.error.main}
+            name="Vencidos"
+          />
+        </BarChart>
       </ResponsiveContainer>
     </Box>
   );

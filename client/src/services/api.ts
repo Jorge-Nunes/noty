@@ -158,6 +158,38 @@ export const paymentsAPI = {
   },
 };
 
+// Evolution API
+export const evolutionAPI = {
+  listInstances: async (): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.get('/evolution/instances');
+    return response.data;
+  },
+  createInstance: async (instanceName: string, additionalConfig?: any): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.post('/evolution/instances', { instanceName, additionalConfig });
+    return response.data;
+  },
+  deleteInstance: async (name: string): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.delete(`/evolution/instances/${encodeURIComponent(name)}`);
+    return response.data;
+  },
+  getStatus: async (name: string): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.get(`/evolution/instances/${encodeURIComponent(name)}/status`);
+    return response.data;
+  },
+  getQr: async (name: string): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.get(`/evolution/instances/${encodeURIComponent(name)}/qr`);
+    return response.data;
+  },
+  action: async (name: string, action: 'start'|'restart'|'logout'|'stop'): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.post(`/evolution/instances/${encodeURIComponent(name)}/${action}`);
+    return response.data;
+  },
+  setDefault: async (instanceName: string): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.post('/evolution/default', { instanceName });
+    return response.data;
+  }
+};
+
 // Config API
 export const configAPI = {
   getAll: async (category: string = 'all'): Promise<ApiResponse> => {

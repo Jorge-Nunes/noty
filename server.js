@@ -16,6 +16,7 @@ const templatesRoutes = require('./routes/templates');
 const webhooksRoutes = require('./routes/webhooks');
 const traccarRoutes = require('./routes/traccar');
 const paymentStatusRoutes = require('./routes/payment-status');
+const evolutionRoutes = require('./routes/evolution');
 
 const logger = require('./utils/logger');
 const SchedulerService = require('./services/SchedulerService');
@@ -58,6 +59,7 @@ app.use('/api/templates', templatesRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/traccar', traccarRoutes);
 app.use('/api/payment-status', paymentStatusRoutes);
+app.use('/api/evolution', evolutionRoutes);
 
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production' || true) {

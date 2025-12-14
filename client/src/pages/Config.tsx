@@ -269,6 +269,15 @@ export const Config: React.FC = () => {
               Configurações da Evolution API
             </Typography>
 
+            {/* Evolution Manager */}
+            <Box sx={{ my: 2 }}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Antes de enviar mensagens, crie e conecte uma instância da Evolution e defina-a como padrão.
+              </Alert>
+              {/* @ts-ignore - component default export usage */}
+              {React.createElement(require('../components/EvolutionManager').default)}
+            </Box>
+
             {configsData?.data?.configs?.evolution?.map(renderConfigField)}
 
             <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
