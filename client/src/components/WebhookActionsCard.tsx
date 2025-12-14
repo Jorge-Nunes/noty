@@ -74,17 +74,22 @@ const WebhookActionsCard: React.FC = () => {
     refetch: refetchStats
   } = useQuery(['webhook-stats', period], () => webhooksAPI.stats(period), {
     refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 5000, // Data considered fresh for 5 seconds
+    cacheTime: 10 * 60 * 1000, // Cache for 10 minutes
   });
 
   const {
     data: activitiesData,
     isLoading: activitiesLoading,
     error: activitiesError
-  } = useQuery(['webhook-activities'], () => webhooksAPI.activities(20));
+  } = useQuery(['webhook-activities'], () => webhooksAPI.activities(20), {
+    staleTime: 5000, // Data considered fresh for 5 seconds
+    cacheTime: 10 * 60 * 1000, // Cache for 10 minutes
+  });
 
-  const stats: WebhookStats | undefined = statsData?.data?.data;
-  const activities: WebhookActivity[] = activitiesData?.data?.data?.activities || [];
-
+  const stats: WebhookStats | undefined = statsData?.data;
+  const activities: WebhookActivity[] = activitiesData?.data?.activities || [];
+  
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
       case 'PAYMENT_RECEIVED':
@@ -199,7 +204,7 @@ const WebhookActionsCard: React.FC = () => {
                     title="Webhooks"
                     value={stats.totalWebhooks}
                     icon={<TrendingUp />}
-                    color="primary"
+                    color="#1976d2"
                   />
                 </Grid>
                 <Grid item xs={6} sm={3}>
@@ -207,7 +212,7 @@ const WebhookActionsCard: React.FC = () => {
                     title="Mensagens"
                     value={stats.messagesSent}
                     icon={<Message />}
-                    color="success"
+                    color="#2e7d32"
                   />
                 </Grid>
                 <Grid item xs={6} sm={3}>
@@ -215,7 +220,7 @@ const WebhookActionsCard: React.FC = () => {
                     title="Taxa Sucesso"
                     value={stats.successRate}
                     icon={<CheckCircle />}
-                    color="info"
+                    color="#0288d1"
                   />
                 </Grid>
                 <Grid item xs={6} sm={3}>
@@ -223,7 +228,7 @@ const WebhookActionsCard: React.FC = () => {
                     title="Clientes"
                     value={stats.uniqueClients}
                     icon={<AccessTime />}
-                    color="warning"
+                    color="#ed6c02"
                   />
                 </Grid>
               </Grid>
