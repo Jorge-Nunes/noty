@@ -7,6 +7,10 @@ const EvolutionService = require('../services/EvolutionService');
 const TemplateService = require('../services/TemplateService');
 const TraccarAutomationService = require('../services/TraccarAutomationService');
 const { authMiddleware } = require('../middleware/auth');
+// Allow public access to webhook stats/activities when enabled via env
+const requireWebhookAuth = process.env.WEBHOOKS_STATS_PUBLIC === 'true'
+  ? (req, res, next) => next()
+  : authMiddleware;
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -308,7 +312,7 @@ async function handlePaymentUpdated(payment) {
 }
 
 // Webhook statistics endpoint
-router.get('/stats', authMiddleware, async (req, res) => {
+router.get('/stats', requireWebhookAuth, async (req, res) => {
   // Extra logs to help diagnose frontend visibility issues
   try {
     const hasAuth = !!req.user;
@@ -445,7 +449,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 });
 
 // Webhook recent activities endpoint
-router.get('/activities', authMiddleware, async (req, res) => {
+router.get('/activities', requireWebhookAuth, async (req, res) => {
   // Extra logs to help diagnose frontend visibility issues
   try {
     const hasAuth = !!req.user;
