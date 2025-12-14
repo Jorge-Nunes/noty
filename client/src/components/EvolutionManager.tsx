@@ -106,10 +106,26 @@ export const EvolutionManager: React.FC = () => {
   };
 
   const copyToClipboard = (text: string, label: string) => {
+    if (!text || text === 'N/A') {
+      enqueueSnackbar('API Key não disponível para cópia', { variant: 'warning' });
+      return;
+    }
+    
     navigator.clipboard.writeText(text).then(() => {
       enqueueSnackbar(`${label} copiada para a área de transferência!`, { variant: 'success' });
     }).catch(() => {
-      enqueueSnackbar(`Erro ao copiar ${label}`, { variant: 'error' });
+      // Fallback para browsers antigos
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        enqueueSnackbar(`${label} copiada para a área de transferência!`, { variant: 'success' });
+      } catch (err) {
+        enqueueSnackbar(`Erro ao copiar ${label}`, { variant: 'error' });
+      }
+      document.body.removeChild(textArea);
     });
   };
 
@@ -128,7 +144,19 @@ export const EvolutionManager: React.FC = () => {
                   'Desconhecido';
     
     const integration = inst?.instance?.integration || inst?.integration || '';
-    const apikey = inst?.instance?.token || inst?.token || inst?.apikey || inst?.instance?.apikey || 'N/A';
+    
+    // Try multiple possible API key fields from Evolution API
+    const apikey = inst?.instance?.token || 
+                   inst?.token || 
+                   inst?.apikey || 
+                   inst?.instance?.apikey ||
+                   inst?.apiKey ||
+                   inst?.instance?.apiKey ||
+                   inst?.key ||
+                   inst?.instance?.key ||
+                   'N/A';
+                   
+    console.log('Instance data for API key:', { name, apikey, fullData: inst }); // Debug
     const statusInfo = getStatusInfo(state);
     
     return (
@@ -149,8 +177,21 @@ export const EvolutionManager: React.FC = () => {
               {integration && <div>Integração: {integration}</div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                 <Key sx={{ fontSize: 16, color: 'text.secondary' }} />
-                <span style={{ fontFamily: 'monospace', fontSize: '0.85em', background: '#f5f5f5', padding: '2px 6px', borderRadius: 4 }}>
-                  {apikey !== 'N/A' ? `${apikey.substring(0, 20)}...` : 'API Key não disponível'}
+                <span 
+                  style={{ 
+                    fontFamily: 'monospace', 
+                    fontSize: '0.85em', 
+                    background: apikey !== 'N/A' ? '#e8f5e8' : '#f5f5f5', 
+                    padding: '2px 6px', 
+                    borderRadius: 4,
+                    maxWidth: '300px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title={apikey !== 'N/A' ? apikey : 'API Key não disponível'}
+                >
+                  {apikey !== 'N/A' ? apikey : 'API Key não disponível'}
                 </span>
                 {apikey !== 'N/A' && (
                   <Tooltip title="Copiar API Key completa">
@@ -276,9 +317,12 @@ export const EvolutionManager: React.FC = () => {
                   <strong>Possíveis campos de status que estou verificando:</strong>
                   <ul>
                     <li><strong>Estado:</strong> inst?.instance?.state, inst?.state, inst?.status, etc.</li>
-                    <li><strong>API Key:</strong> inst?.instance?.token, inst?.token, inst?.apikey, inst?.instance?.apikey</li>
+                    <li><strong>API Key:</strong> inst?.instance?.token, inst?.token, inst?.apikey, inst?.instance?.apikey, inst?.apiKey, inst?.key</li>
                     <li><strong>Nome:</strong> inst?.instance?.instanceName, inst?.instanceName, inst?.name</li>
                   </ul>
+                  <div style={{ marginTop: 8, fontSize: '0.9em' }}>
+                    <strong>Verificar no Console do navegador:</strong> logs "Instance data for API key"
+                  </div>
                 </div>
               </details>
               

@@ -64,7 +64,10 @@ class PaymentStatusService {
       if (process.env.NODE_ENV === 'development') {
         logger.debug('📋 Detalhes das cobranças atualizadas:');
         pendingOverduePayments.slice(0, 10).forEach(payment => {
-          logger.debug(`   - ID: ${payment.id}, Valor: R$ ${payment.value}, Vencimento: ${payment.due_date.toLocaleDateString('pt-BR')}`);
+          const formattedDate = payment.due_date instanceof Date ? 
+            payment.due_date.toLocaleDateString('pt-BR') : 
+            payment.due_date;
+          logger.debug(`   - ID: ${payment.id}, Valor: R$ ${payment.value}, Vencimento: ${formattedDate}`);
         });
         if (pendingOverduePayments.length > 10) {
           logger.debug(`   ... e mais ${pendingOverduePayments.length - 10} cobranças`);
