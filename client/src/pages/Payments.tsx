@@ -31,8 +31,11 @@ import {
   Warning,
   Schedule,
   CheckCircle,
+  Edit,
+  DeleteOutline,
 } from '@mui/icons-material';
-import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import { GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import { ResponsiveDataGrid } from '../components/ResponsiveDataGrid';
 import { useQuery, useMutation } from 'react-query';
 import { paymentsAPI, automationAPI, configAPI } from '../services/api';
 import { useSnackbar } from 'notistack';
@@ -50,6 +53,9 @@ export const Payments: React.FC = () => {
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
   const [customMessage, setCustomMessage] = useState('');
   const [companyName, setCompanyName] = useState('Sua Empresa');
+  const [editDialog, setEditDialog] = useState(false);
+  const [editData, setEditData] = useState<any>({});
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   
   const { enqueueSnackbar } = useSnackbar();
 
@@ -251,57 +257,151 @@ Estamos aqui para ajudar no que precisar! 🤝`;
       field: 'client',
       headerName: 'Cliente',
       flex: 1,
-      minWidth: 200,
-      renderCell: (params) => params.value?.name || 'N/A',
+      minWidth: 180,
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          height: '100%',
+          py: 1
+        }}>
+          {params.value?.name || 'N/A'}
+        </Box>
+      ),
     },
     {
       field: 'value',
       headerName: 'Valor',
-      width: 120,
-      renderCell: (params) => formatCurrency(params.value),
+      width: 130,
+      minWidth: 120,
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          height: '100%',
+          fontWeight: 'medium'
+        }}>
+          {formatCurrency(params.value)}
+        </Box>
+      ),
     },
     {
       field: 'due_date',
       headerName: 'Vencimento',
-      width: 120,
-      renderCell: (params) => formatDate(params.value),
+      width: 130,
+      minWidth: 120,
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          height: '100%'
+        }}>
+          {formatDate(params.value)}
+        </Box>
+      ),
     },
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 130,
+      minWidth: 120,
       renderCell: (params) => (
-        <Chip
-          label={getStatusLabel(params.value)}
-          color={getStatusColor(params.value)}
-          size="small"
-        />
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          height: '100%'
+        }}>
+          <Chip
+            label={getStatusLabel(params.value)}
+            color={getStatusColor(params.value)}
+            size="small"
+          />
+        </Box>
       ),
     },
     {
       field: 'billing_type',
       headerName: 'Tipo',
-      width: 100,
-      renderCell: (params) => getBillingTypeLabel(params.value),
+      width: 110,
+      minWidth: 100,
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          height: '100%'
+        }}>
+          {getBillingTypeLabel(params.value)}
+        </Box>
+      ),
     },
     {
       field: 'description',
       headerName: 'Descrição',
       flex: 1,
       minWidth: 150,
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          height: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}>
+          {params.value || '-'}
+        </Box>
+      ),
     },
     {
       field: 'warning_count',
       headerName: 'Avisos',
-      width: 80,
-      renderCell: (params) => params.value || 0,
+      width: 90,
+      minWidth: 80,
+      renderCell: (params) => (
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          height: '100%'
+        }}>
+          {params.value || 0}
+        </Box>
+      ),
     },
     {
       field: 'actions',
       type: 'actions',
       headerName: 'Ações',
-      width: 150,
+      width: 200,
+      minWidth: 180,
+      sortable: false,
+      filterable: false,
+      hideable: false,
       getActions: (params) => [
+        <GridActionsCellItem
+          icon={<Edit />}
+          label="Editar"
+          onClick={() => {
+            setSelectedPayment(params.row);
+            setEditData({
+              value: params.row.value,
+              due_date: params.row.due_date,
+              status: params.row.status,
+              description: params.row.description || '',
+              billing_type: params.row.billing_type,
+              invoice_url: params.row.invoice_url || '',
+              bank_slip_url: params.row.bank_slip_url || '',
+            });
+            setEditDialog(true);
+          }}
+        />, 
+        <GridActionsCellItem
+          icon={<DeleteOutline />}
+          label="Excluir"
+          onClick={() => {
+            setSelectedPayment(params.row);
+            setDeleteConfirm(true);
+          }}
+        />,
         <GridActionsCellItem
           icon={<Visibility />}
           label="Visualizar"
@@ -445,7 +545,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={4} lg={3}>
               <TextField
                 fullWidth
                 placeholder="Pesquisar cliente..."
@@ -454,11 +554,12 @@ Estamos aqui para ajudar no que precisar! 🤝`;
                 InputProps={{
                   startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
                 }}
+                size="small"
               />
             </Grid>
             
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth>
+            <Grid item xs={12} sm={6} md={3} lg={2}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
                   value={status}
@@ -482,6 +583,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                size="small"
               />
             </Grid>
 
@@ -493,12 +595,17 @@ Estamos aqui para ajudar no que precisar! 🤝`;
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                size="small"
               />
             </Grid>
 
-            <Grid item xs={12} sm={6} md={1}>
+            <Grid item xs={12} sm={12} md={1} sx={{ 
+              display: 'flex', 
+              justifyContent: { xs: 'flex-start', md: 'center' },
+              alignItems: 'center'
+            }}>
               <Tooltip title="Atualizar">
-                <IconButton onClick={() => refetch()}>
+                <IconButton onClick={() => refetch()} size="large">
                   <Refresh />
                 </IconButton>
               </Tooltip>
@@ -510,7 +617,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
       {/* Data Grid */}
       <Card>
         <CardContent sx={{ p: 0 }}>
-          <DataGrid
+          <ResponsiveDataGrid
             rows={payments}
             columns={columns}
             loading={isLoading}
@@ -524,7 +631,6 @@ Estamos aqui para ajudar no que precisar! 🤝`;
             pageSizeOptions={[10, 25, 50, 100]}
             disableRowSelectionOnClick
             autoHeight
-            sx={{ border: 'none' }}
           />
         </CardContent>
       </Card>
@@ -598,6 +704,134 @@ Estamos aqui para ajudar no que precisar! 🤝`;
           >
             {sendWhatsAppMutation.isLoading ? 'Enviando...' : 'Enviar WhatsApp'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialog} onClose={() => setEditDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Cobrança</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Valor"
+                type="number"
+                value={editData.value || ''}
+                onChange={(e) => setEditData({ ...editData, value: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Vencimento"
+                type="date"
+                value={editData.due_date || ''}
+                onChange={(e) => setEditData({ ...editData, due_date: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  label="Status"
+                  value={editData.status || 'PENDING'}
+                  onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+                >
+                  <MenuItem value="PENDING">Pendente</MenuItem>
+                  <MenuItem value="OVERDUE">Vencido</MenuItem>
+                  <MenuItem value="RECEIVED">Recebido</MenuItem>
+                  <MenuItem value="CONFIRMED">Confirmado</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Tipo</InputLabel>
+                <Select
+                  label="Tipo"
+                  value={editData.billing_type || 'BOLETO'}
+                  onChange={(e) => setEditData({ ...editData, billing_type: e.target.value })}
+                >
+                  <MenuItem value="BOLETO">Boleto</MenuItem>
+                  <MenuItem value="PIX">PIX</MenuItem>
+                  <MenuItem value="CREDIT_CARD">Cartão</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Descrição"
+                value={editData.description || ''}
+                onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                multiline
+                rows={3}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="URL Fatura"
+                value={editData.invoice_url || ''}
+                onChange={(e) => setEditData({ ...editData, invoice_url: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="URL Boleto"
+                value={editData.bank_slip_url || ''}
+                onChange={(e) => setEditData({ ...editData, bank_slip_url: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialog(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={async () => {
+            if (!selectedPayment) return;
+            try {
+              const payload = { ...editData };
+              const res = await paymentsAPI.update(selectedPayment.id, payload);
+              if (res.success) {
+                enqueueSnackbar('Cobrança atualizada com sucesso', { variant: 'success' });
+                setEditDialog(false);
+                refetch();
+              } else {
+                enqueueSnackbar(res.message || 'Falha ao atualizar cobrança', { variant: 'error' });
+              }
+            } catch (err: any) {
+              enqueueSnackbar(err.response?.data?.message || 'Erro ao atualizar cobrança', { variant: 'error' });
+            }
+          }}>Salvar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={deleteConfirm} onClose={() => setDeleteConfirm(false)}>
+        <DialogTitle>Excluir Cobrança</DialogTitle>
+        <DialogContent>
+          Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(false)}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={async () => {
+            if (!selectedPayment) return;
+            try {
+              const res = await paymentsAPI.delete(selectedPayment.id);
+              if (res.success) {
+                enqueueSnackbar('Cobrança excluída com sucesso', { variant: 'success' });
+                setDeleteConfirm(false);
+                refetch();
+              } else {
+                enqueueSnackbar(res.message || 'Falha ao excluir cobrança', { variant: 'error' });
+              }
+            } catch (err: any) {
+              enqueueSnackbar(err.response?.data?.message || 'Erro ao excluir cobrança', { variant: 'error' });
+            }
+          }}>Excluir</Button>
         </DialogActions>
       </Dialog>
     </Box>

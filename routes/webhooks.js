@@ -543,4 +543,154 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Webhook do Asaas para reconciliação em tempo real
+router.post('/asaas', async (req, res) => {
+  const logger = require('../utils/logger');
+  const { Payment, Client, WebhookLog } = require('../models');
+  const TraccarAutomationService = require('../services/TraccarAutomationService');
+
+  try {
+    // 1) Validação básica do payload
+    const body = req.body;
+    const event = body.event || body.type || '';
+    
+    // Log do webhook recebido
+    logger.info(`🔔 Webhook Asaas recebido: ${event}`);
+    
+    if (!['PAYMENT_CREATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE'].includes(event)) {
+      logger.info(`ℹ️ Evento ${event} ignorado (não relevante para reconciliação)`);
+      return res.status(200).json({ success: true, ignored: true, reason: 'Evento não monitorado' });
+    }
+
+    const paymentData = body.payment || body;
+    if (!paymentData || !paymentData.id || !paymentData.customer) {
+      logger.warn('⚠️ Webhook sem payment.id ou customer');
+      return res.status(200).json({ success: true, ignored: true, reason: 'Payload inválido' });
+    }
+
+    // 2) Resolver o cliente
+    let client = await Client.findOne({ where: { asaas_id: paymentData.customer } });
+    if (!client) {
+      logger.warn(`⚠️ Cliente não encontrado para asaas_id=${paymentData.customer}`);
+      // Política: logar e continuar (não bloqueia o webhook)
+      await WebhookLog.create({
+        source: 'asaas',
+        event_type: event,
+        external_id: paymentData.id,
+        payload: body,
+        status: 'ignored',
+        error_message: `Cliente não encontrado: ${paymentData.customer}`
+      });
+      return res.status(200).json({ success: true, ignored: true, reason: 'Cliente não encontrado' });
+    }
+
+    // 3) Upsert de Payment (idempotente)
+    const [payment, created] = await Payment.findOrCreate({
+      where: { asaas_id: paymentData.id },
+      defaults: {
+        asaas_id: paymentData.id,
+        client_id: client.id,
+        value: paymentData.value ?? 0,
+        net_value: paymentData.netValue ?? null,
+        original_value: paymentData.originalValue ?? null,
+        interest_value: paymentData.interestValue ?? 0,
+        billing_type: paymentData.billingType || 'BOLETO',
+        status: paymentData.status || 'PENDING',
+        due_date: paymentData.dueDate,
+        original_due_date: paymentData.originalDueDate ?? null,
+        invoice_url: paymentData.invoiceUrl ?? null,
+        bank_slip_url: paymentData.bankSlipUrl ?? null,
+        description: paymentData.description ?? null,
+        external_reference: paymentData.externalReference ?? null,
+        notification_disabled: !!paymentData.notificationDisabled,
+        authorized_only: !!paymentData.authorizedOnly,
+        installment: paymentData.installment ?? 1,
+        last_sync: new Date()
+      }
+    });
+
+    if (!created) {
+      // Atualização não destrutiva
+      const updates = {
+        client_id: client.id,
+        value: paymentData.value ?? payment.value,
+        net_value: paymentData.netValue ?? payment.net_value,
+        original_value: paymentData.originalValue ?? payment.original_value,
+        interest_value: paymentData.interestValue ?? payment.interest_value,
+        billing_type: paymentData.billingType || payment.billing_type,
+        status: paymentData.status || payment.status,
+        due_date: paymentData.dueDate || payment.due_date,
+        original_due_date: paymentData.originalDueDate ?? payment.original_due_date,
+        invoice_url: paymentData.invoiceUrl ?? payment.invoice_url,
+        bank_slip_url: paymentData.bankSlipUrl ?? payment.bank_slip_url,
+        description: paymentData.description ?? payment.description,
+        external_reference: paymentData.externalReference ?? payment.external_reference,
+        notification_disabled: paymentData.notificationDisabled ?? payment.notification_disabled,
+        authorized_only: paymentData.authorizedOnly ?? payment.authorized_only,
+        installment: paymentData.installment ?? payment.installment,
+        last_sync: new Date()
+      };
+      await payment.update(updates);
+    }
+
+    // 4) Log de webhook
+    await WebhookLog.create({
+      source: 'asaas',
+      event_type: event,
+      external_id: paymentData.id,
+      payload: body,
+      status: 'processed',
+      client_id: client.id,
+      payment_id: payment.id
+    });
+
+    // 5) ⚡ RECONCILIAÇÃO EM TEMPO REAL ⚡
+    let reconciliationResult = null;
+    
+    // Eventos que podem alterar o status de bloqueio
+    if (['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE'].includes(event)) {
+      try {
+        logger.info(`🔄 Iniciando reconciliação em tempo real para cliente ${client.name} (evento: ${event})`);
+        reconciliationResult = await TraccarAutomationService.reconcileClientBlockStatus(client.id);
+        
+        if (reconciliationResult.changed) {
+          logger.info(`✅ Cliente ${client.name} ${reconciliationResult.action} automaticamente via webhook`);
+        }
+      } catch (reconciliationError) {
+        logger.error(`❌ Erro na reconciliação em tempo real para cliente ${client.id}:`, reconciliationError.message);
+        // Não falha o webhook por causa da reconciliação
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      created, 
+      payment_id: payment.id,
+      client_id: client.id,
+      event,
+      reconciliation: reconciliationResult
+    });
+
+  } catch (err) {
+    logger.error('❌ Erro no webhook ASAAS:', err);
+    
+    try {
+      const { WebhookLog } = require('../models');
+      await WebhookLog.create({
+        source: 'asaas',
+        event_type: req.body?.event || 'UNKNOWN',
+        external_id: (req.body?.payment?.id) || null,
+        payload: req.body,
+        status: 'error',
+        error_message: err.message
+      });
+    } catch (logError) {
+      logger.error('❌ Erro ao salvar log de webhook com erro:', logError);
+    }
+    
+    // Retorna 200 para evitar retry desnecessário do Asaas
+    return res.status(200).json({ success: false, message: 'Erro processado e logado' });
+  }
+});
+
 module.exports = router;

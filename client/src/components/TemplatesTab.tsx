@@ -64,10 +64,16 @@ const templateTypes = [
     color: 'primary' as const
   },
   { 
-    type: 'traccar_warning', 
-    name: 'Aviso Bloqueio Traccar', 
-    description: 'Aviso enviado antes do bloqueio no sistema Traccar',
+    type: 'traccar_warning_threshold', 
+    name: 'Aviso Limiar Traccar', 
+    description: 'Aviso enviado quando está no limiar de bloqueio (ex: 2 de 3 cobranças)',
     color: 'warning' as const
+  },
+  { 
+    type: 'traccar_warning_final', 
+    name: 'Aviso Final Traccar', 
+    description: 'Último aviso antes do bloqueio automático (quando atinge o limite)',
+    color: 'error' as const
   },
   { 
     type: 'traccar_block', 

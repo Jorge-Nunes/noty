@@ -398,7 +398,7 @@ class TraccarAutomationService {
   async syncClient(clientId) {
     try {
       const client = await Client.findByPk(clientId, {
-        include: [TraccarIntegration]
+        include: [{ model: TraccarIntegration, as: 'TraccarIntegration' }]
       });
 
       if (!client) {
@@ -504,8 +504,8 @@ class TraccarAutomationService {
         const overdueCount = overduePayments.length;
         const totalOverdueAmount = overduePayments.reduce((sum, payment) => sum + parseFloat(payment.value), 0);
 
-        // Lógica simplificada: avisa quando está próximo do limite de bloqueio
-        const shouldWarn = (overdueCount >= (rules.block_after_count - 1));
+        // Nova lógica: avisa APENAS quando está exatamente no limiar (count = limit - 1)
+        const shouldWarn = (overdueCount === (rules.block_after_count - 1));
 
         // Verifica se já enviou aviso nas últimas 24h
         const shouldSendWarning = await TraccarNotificationService.shouldSendWarning(client.id);
@@ -531,34 +531,187 @@ class TraccarAutomationService {
   }
 
   /**
-   * Envia aviso de bloqueio iminente
+   * Envia aviso de bloqueio baseado no escalonamento por quantidade
    */
   async sendWarning(candidate, rules) {
-    const { integration, client, overdueCount, totalOverdueAmount, daysUntilBlock } = candidate;
+    const { integration, client, overdueCount, totalOverdueAmount } = candidate;
 
     try {
       // Inicializa serviço de notificação
       await TraccarNotificationService.initialize();
 
-      // Envia aviso
+      // Determina o tipo de aviso baseado na quantidade vs limite
+      const remainingCount = rules.block_after_count - overdueCount;
+      let warningType = 'traccar_warning_threshold';
+
+      if (overdueCount === rules.block_after_count - 1) {
+        // Está no limiar - próxima cobrança = bloqueio
+        warningType = 'traccar_warning_threshold';
+      } else if (overdueCount >= rules.block_after_count) {
+        // Já atingiu o limite - aviso final (caso especial para reconciliação)
+        warningType = 'traccar_warning_final';
+      }
+
+      // Envia aviso com tipo específico
       await TraccarNotificationService.sendWarningNotification(client.id, {
         overdue_count: overdueCount,
         overdue_amount: totalOverdueAmount,
-        days_until_block: daysUntilBlock
+        remaining_count: remainingCount,
+        block_limit: rules.block_after_count,
+        warning_type: warningType
       });
 
-
-
-      logger.info(`Aviso de bloqueio enviado para ${client.name} - bloqueio em ${daysUntilBlock} dias`);
+      logger.info(`Aviso "${warningType}" enviado para ${client.name} - ${overdueCount} de ${rules.block_after_count} cobranças em atraso`);
 
     } catch (error) {
-
-
-
       logger.error(`Erro ao enviar aviso para ${client.name}:`, error);
       throw error;
     }
   }
+  /**
+   * Reconcilia o status de bloqueio de um cliente em tempo real
+   * Verifica se deve bloquear ou desbloquear baseado nas cobranças atuais
+   */
+  async reconcileClientBlockStatus(clientId) {
+    try {
+      // Verifica se automação está habilitada
+      const isEnabled = await this.isAutomationEnabled();
+      if (!isEnabled) {
+        return { clientId, skipped: true, reason: 'Automação desabilitada' };
+      }
+
+      // Busca regras
+      const rules = await this.getAutomationRules();
+      if (!rules) {
+        return { clientId, skipped: true, reason: 'Regras não encontradas' };
+      }
+
+      // Busca cliente com integração e pagamentos
+      const client = await Client.findByPk(clientId, {
+        include: [
+          { 
+            model: TraccarIntegration, 
+            as: 'TraccarIntegration'
+          },
+          {
+            model: Payment,
+            as: 'payments',
+            where: { status: 'OVERDUE' },
+            required: false
+          }
+        ]
+      });
+
+      if (!client || !client.TraccarIntegration || !client.TraccarIntegration.traccar_user_id) {
+        return { clientId, skipped: true, reason: 'Sem integração Traccar válida' };
+      }
+
+      const integration = client.TraccarIntegration;
+      const overduePayments = client.payments || [];
+      const overdueCount = overduePayments.length;
+      const currentlyBlocked = integration.is_blocked;
+
+      // Verifica se cliente está na whitelist
+      if (rules.whitelist_clients.includes(clientId)) {
+        return { clientId, skipped: true, reason: 'Cliente na whitelist' };
+      }
+
+      // Inicializa TraccarService se necessário
+      await TraccarService.initialize();
+
+      // Determina ação necessária
+      const shouldBeBlocked = overdueCount >= rules.block_after_count;
+
+      if (shouldBeBlocked && !currentlyBlocked) {
+        // Deve bloquear
+        const totalAmount = overduePayments.reduce((sum, p) => sum + parseFloat(p.value || 0), 0);
+        
+        await this.blockClient({
+          integration,
+          client,
+          overduePayments,
+          overdueCount,
+          totalOverdueAmount: totalAmount
+        }, rules);
+
+        return { 
+          clientId, 
+          changed: true, 
+          action: 'blocked',
+          overdueCount,
+          totalAmount: totalAmount.toFixed(2)
+        };
+
+      } else if (!shouldBeBlocked && currentlyBlocked && rules.unblock_on_payment) {
+        // Deve desbloquear
+        await this.unblockClient({
+          integration,
+          client
+        });
+
+        return { 
+          clientId, 
+          changed: true, 
+          action: 'unblocked',
+          overdueCount 
+        };
+
+      } else {
+        // Não precisa alterar
+        return { 
+          clientId, 
+          changed: false, 
+          action: 'none',
+          currentStatus: currentlyBlocked ? 'blocked' : 'active',
+          overdueCount 
+        };
+      }
+
+    } catch (error) {
+      logger.error(`Erro na reconciliação em tempo real para cliente ${clientId}:`, error);
+      return { clientId, error: true, message: error.message };
+    }
+  }
+
+  /**
+   * Reconcilia múltiplos clientes em batch (otimizado)
+   */
+  async reconcileMultipleClients(clientIds, maxConcurrency = 3) {
+    if (!clientIds || clientIds.length === 0) return [];
+
+    logger.info(`Reconciliando ${clientIds.length} clientes em tempo real...`);
+    
+    const results = [];
+    const chunks = [];
+    
+    // Divide em chunks para evitar sobrecarga
+    for (let i = 0; i < clientIds.length; i += maxConcurrency) {
+      chunks.push(clientIds.slice(i, i + maxConcurrency));
+    }
+
+    for (const chunk of chunks) {
+      const chunkPromises = chunk.map(clientId => 
+        this.reconcileClientBlockStatus(clientId).catch(error => ({
+          clientId,
+          error: true,
+          message: error.message
+        }))
+      );
+      
+      const chunkResults = await Promise.all(chunkPromises);
+      results.push(...chunkResults);
+    }
+
+    // Log do resultado
+    const blocked = results.filter(r => r.action === 'blocked').length;
+    const unblocked = results.filter(r => r.action === 'unblocked').length;
+    const errors = results.filter(r => r.error).length;
+    
+    logger.info(`Reconciliação concluída: ${blocked} bloqueados, ${unblocked} desbloqueados, ${errors} erros`);
+
+    return results;
+  }
+
   /**
    * Verifica e desbloqueia um cliente específico se elegível
    * Usado principalmente por webhooks de pagamento

@@ -201,20 +201,22 @@ class TraccarNotificationService {
   }
 
   /**
-   * Envia aviso antes do bloqueio
+   * Envia aviso antes do bloqueio com tipos específicos
    */
   async sendWarningNotification(clientId, warningData) {
+    const warningType = warningData.warning_type || 'traccar_warning_threshold';
+    
     // Deduplicate before sending: skip if warning sent in last 24h
     const recent = await MessageLog.findOne({
       where: {
         client_id: clientId,
-        message_type: 'traccar_warning',
+        message_type: [warningType, 'traccar_warning_threshold', 'traccar_warning_final'],
         created_at: { [Op.gte]: new Date(Date.now() - 24*60*60*1000) }
       },
       order: [['created_at', 'DESC']]
     });
     if (recent) {
-      logger.info(`Deduped traccar_warning for client ${clientId} (recent message within 24h)`);
+      logger.info(`Deduped ${warningType} for client ${clientId} (recent message within 24h)`);
       return { success: true, message: 'Duplicado suprimido' };
     }
 
@@ -230,12 +232,20 @@ class TraccarNotificationService {
         return { success: false, message: 'Cliente sem telefone' };
       }
 
-      const template = await MessageTemplate.findOne({
-        where: { type: 'traccar_warning', is_active: true }
+      // Busca template específico, com fallback para template genérico
+      let template = await MessageTemplate.findOne({
+        where: { type: warningType, is_active: true }
       });
 
       if (!template) {
-        logger.error('Template traccar_warning não encontrado');
+        // Fallback para template genérico
+        template = await MessageTemplate.findOne({
+          where: { type: 'traccar_warning', is_active: true }
+        });
+      }
+
+      if (!template) {
+        logger.error(`Template ${warningType} não encontrado`);
         return { success: false, message: 'Template não encontrado' };
       }
 
@@ -244,6 +254,8 @@ class TraccarNotificationService {
         client_name: client.name,
         overdue_amount: this.formatCurrency(warningData.overdue_amount || 0),
         overdue_count: warningData.overdue_count || 0,
+        remaining_count: warningData.remaining_count || 0,
+        block_limit: warningData.block_limit || 3,
         days_until_block: warningData.days_until_block || 0,
         company_name: this.config.company_name,
         company_phone: this.config.company_phone
@@ -258,7 +270,7 @@ class TraccarNotificationService {
       // Log da tentativa
       await MessageLog.create({
         client_id: clientId,
-        message_type: 'traccar_warning',
+        message_type: warningType,
         phone_number: client.mobile_phone,
         message_content: message,
         status: result.success ? 'sent' : 'failed',
@@ -266,7 +278,7 @@ class TraccarNotificationService {
       });
 
       if (result.success) {
-        logger.info(`Aviso de bloqueio enviado para ${client.name}`);
+        logger.info(`Aviso ${warningType} enviado para ${client.name}`);
         return { success: true, message: 'Aviso enviado' };
       } else {
         logger.error(`Falha ao enviar aviso para ${client.name}:`, result.error);

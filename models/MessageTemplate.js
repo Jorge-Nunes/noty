@@ -16,7 +16,9 @@ const MessageTemplate = sequelize.define('message_templates', {
       'payment_confirmed',
       'traccar_block',
       'traccar_unblock',
-      'traccar_warning'
+      'traccar_warning',
+      'traccar_warning_threshold',
+      'traccar_warning_final'
     ),
     allowNull: false,
     unique: true

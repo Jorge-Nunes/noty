@@ -36,7 +36,8 @@ import {
   PersonOff,
   Person,
 } from '@mui/icons-material';
-import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import { GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import { ResponsiveDataGrid } from '../components/ResponsiveDataGrid';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { clientsAPI } from '../services/api';
 import { useForm } from 'react-hook-form';
@@ -283,7 +284,11 @@ export const Clients: React.FC = () => {
       field: 'actions',
       type: 'actions',
       headerName: 'Ações',
-      width: 150,
+      width: 200,
+      minWidth: 180,
+      sortable: false,
+      filterable: false,
+      hideable: false,
       getActions: (params) => [
         <GridActionsCellItem
           icon={<Visibility />}
@@ -330,43 +335,54 @@ export const Clients: React.FC = () => {
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              placeholder="Pesquisar clientes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{
-                startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
-              }}
-              sx={{ minWidth: 300 }}
-            />
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={8} md={6} lg={4}>
+              <TextField
+                fullWidth
+                placeholder="Pesquisar clientes..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
+                }}
+                size="small"
+              />
+            </Grid>
             
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={status}
-                label="Status"
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <MenuItem value="all">Todos</MenuItem>
-                <MenuItem value="active">Ativos</MenuItem>
-                <MenuItem value="inactive">Inativos</MenuItem>
-              </Select>
-            </FormControl>
+            <Grid item xs={12} sm={4} md={3} lg={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={status}
+                  label="Status"
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="active">Ativos</MenuItem>
+                  <MenuItem value="inactive">Inativos</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-            <Tooltip title="Atualizar">
-              <IconButton onClick={() => refetch()}>
-                <Refresh />
-              </IconButton>
-            </Tooltip>
-          </Box>
+            <Grid item xs={12} sm={12} md={3} lg={6} sx={{ 
+              display: 'flex', 
+              justifyContent: { xs: 'flex-start', md: 'flex-end' },
+              alignItems: 'center'
+            }}>
+              <Tooltip title="Atualizar">
+                <IconButton onClick={() => refetch()} size="large">
+                  <Refresh />
+                </IconButton>
+              </Tooltip>
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 
       {/* Data Grid */}
       <Card>
         <CardContent sx={{ p: 0 }}>
-          <DataGrid
+          <ResponsiveDataGrid
             rows={clients}
             columns={columns}
             loading={isLoading}
@@ -380,7 +396,6 @@ export const Clients: React.FC = () => {
             pageSizeOptions={[10, 25, 50, 100]}
             disableRowSelectionOnClick
             autoHeight
-            sx={{ border: 'none' }}
           />
         </CardContent>
       </Card>

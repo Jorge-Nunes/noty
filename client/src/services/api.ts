@@ -156,6 +156,21 @@ export const paymentsAPI = {
     const response: AxiosResponse = await apiClient.get(`/payments/stats/summary?period=${period}`);
     return response.data;
   },
+
+  update: async (id: string, data: any): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.put(`/payments/${id}`, data);
+    return response.data;
+  },
+
+  updateStatus: async (id: string, status: string): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.patch(`/payments/${id}/status`, { status });
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<ApiResponse> => {
+    const response: AxiosResponse = await apiClient.delete(`/payments/${id}`);
+    return response.data;
+  },
 };
 
 // Evolution API

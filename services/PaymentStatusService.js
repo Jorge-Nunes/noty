@@ -1,6 +1,7 @@
 const { Payment } = require('../models');
 const { Op } = require('sequelize');
 const logger = require('../utils/logger');
+const TraccarAutomationService = require('./TraccarAutomationService');
 
 /**
  * Serviço responsável pela atualização automática do status de cobranças
@@ -74,6 +75,20 @@ class PaymentStatusService {
         }
       }
 
+      // Extrai IDs únicos dos clientes afetados
+      const affectedClientIds = [...new Set(pendingOverduePayments.map(p => p.client_id))];
+      
+      // Reconciliação em tempo real do Traccar (se habilitado)
+      let traccarResults = [];
+      if (affectedClientIds.length > 0) {
+        try {
+          logger.info(`🔄 Reconciliando ${affectedClientIds.length} clientes no Traccar...`);
+          traccarResults = await TraccarAutomationService.reconcileMultipleClients(affectedClientIds);
+        } catch (traccarError) {
+          logger.error('⚠️ Erro na reconciliação Traccar (continuando):', traccarError.message);
+        }
+      }
+
       return {
         success: true,
         updated: updatedCount,
@@ -85,7 +100,9 @@ class PaymentStatusService {
           value: p.value,
           due_date: p.due_date,
           client_id: p.client_id
-        }))
+        })),
+        affected_clients: affectedClientIds,
+        traccar_reconciliation: traccarResults
       };
 
     } catch (error) {
@@ -111,7 +128,16 @@ class PaymentStatusService {
 
       const now = new Date();
 
-      // Buscar cobranças OVERDUE que não deveriam estar vencidas
+      // Buscar cobranças que serão revertidas para obter client_ids
+      const paymentsToRevert = await Payment.findAll({
+        where: {
+          status: 'OVERDUE',
+          due_date: { [Op.gte]: now }
+        },
+        attributes: ['id', 'client_id']
+      });
+
+      // Atualizar status
       const [updatedCount] = await Payment.update(
         { 
           status: 'PENDING',
@@ -127,6 +153,25 @@ class PaymentStatusService {
 
       if (updatedCount > 0) {
         logger.info(`✅ ${updatedCount} cobrança(s) revertida(s) para PENDING (data de vencimento foi alterada)`);
+        
+        // Reconciliação em tempo real para clientes que tiveram cobranças revertidas
+        const affectedClientIds = [...new Set(paymentsToRevert.map(p => p.client_id))];
+        let traccarResults = [];
+        
+        if (affectedClientIds.length > 0) {
+          try {
+            logger.info(`🔄 Reconciliando ${affectedClientIds.length} clientes no Traccar após reversão...`);
+            traccarResults = await TraccarAutomationService.reconcileMultipleClients(affectedClientIds);
+          } catch (traccarError) {
+            logger.error('⚠️ Erro na reconciliação Traccar após reversão:', traccarError.message);
+          }
+        }
+
+        return { 
+          updated: updatedCount, 
+          affected_clients: affectedClientIds,
+          traccar_reconciliation: traccarResults 
+        };
       }
 
       return { updated: updatedCount };

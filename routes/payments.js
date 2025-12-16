@@ -307,4 +307,174 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
   }
 });
 
+// Update payment
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const allowed = [
+      'value','net_value','original_value','interest_value','description','billing_type','status',
+      'due_date','original_due_date','payment_date','client_payment_date','installment',
+      'external_reference','notification_disabled','authorized_only','invoice_url','bank_slip_url'
+    ];
+    const data = {};
+    for (const k of allowed) if (k in req.body) data[k] = req.body[k];
+
+    const payment = await Payment.findByPk(id);
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Pagamento não encontrado' });
+    }
+
+    const oldStatus = payment.status;
+    await payment.update(data);
+    
+    // ⚡ Reconciliação em tempo real se status mudou
+    let reconciliationResult = null;
+    if (data.status && data.status !== oldStatus && payment.client_id) {
+      try {
+        const TraccarAutomationService = require('../services/TraccarAutomationService');
+        logger.info(`🔄 Reconciliação após edição de pagamento (${oldStatus} → ${data.status})`);
+        reconciliationResult = await TraccarAutomationService.reconcileClientBlockStatus(payment.client_id);
+        
+        if (reconciliationResult.changed) {
+          logger.info(`✅ Cliente ${reconciliationResult.action} automaticamente após edição`);
+        }
+      } catch (reconciliationError) {
+        logger.error(`⚠️ Erro na reconciliação após edição:`, reconciliationError.message);
+      }
+    }
+
+    return res.json({ 
+      success: true, 
+      data: { payment },
+      reconciliation: reconciliationResult
+    });
+  } catch (error) {
+    logger.error('Update payment error:', error);
+    return res.status(500).json({ success: false, message: 'Erro ao atualizar pagamento' });
+  }
+});
+
+// Update payment status only
+router.patch('/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body || {};
+    if (!status) return res.status(400).json({ success: false, message: 'Status é obrigatório' });
+
+    const payment = await Payment.findByPk(id);
+    if (!payment) return res.status(404).json({ success: false, message: 'Pagamento não encontrado' });
+
+    const oldStatus = payment.status;
+    await payment.update({ status });
+    
+    // ⚡ Reconciliação em tempo real após mudança de status
+    let reconciliationResult = null;
+    if (status !== oldStatus && payment.client_id) {
+      try {
+        const TraccarAutomationService = require('../services/TraccarAutomationService');
+        logger.info(`🔄 Reconciliação após mudança de status (${oldStatus} → ${status})`);
+        reconciliationResult = await TraccarAutomationService.reconcileClientBlockStatus(payment.client_id);
+        
+        if (reconciliationResult.changed) {
+          logger.info(`✅ Cliente ${reconciliationResult.action} automaticamente após mudança de status`);
+        }
+      } catch (reconciliationError) {
+        logger.error(`⚠️ Erro na reconciliação após mudança de status:`, reconciliationError.message);
+      }
+    }
+
+    return res.json({ 
+      success: true, 
+      data: { payment },
+      reconciliation: reconciliationResult
+    });
+  } catch (error) {
+    logger.error('Update payment status error:', error);
+    return res.status(500).json({ success: false, message: 'Erro ao atualizar status do pagamento' });
+  }
+});
+
+// Delete payment
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const payment = await Payment.findByPk(id);
+    if (!payment) return res.status(404).json({ success: false, message: 'Pagamento não encontrado' });
+
+    await payment.destroy();
+    return res.json({ success: true, message: 'Pagamento excluído com sucesso' });
+  } catch (error) {
+    logger.error('Delete payment error:', error);
+    return res.status(500).json({ success: false, message: 'Erro ao excluir pagamento' });
+  }
+});
+
+// Reconciliação manual de clientes no Traccar
+router.post('/reconcile-traccar', authMiddleware, async (req, res) => {
+  try {
+    const { client_ids, force_all } = req.body;
+    const TraccarAutomationService = require('../services/TraccarAutomationService');
+    const { Client } = require('../models');
+    
+    let clientIdsToProcess = [];
+    
+    if (force_all) {
+      // Reconciliar todos os clientes com integração Traccar
+      const clients = await Client.findAll({
+        include: [{
+          model: require('../models').TraccarIntegration,
+          as: 'TraccarIntegration',
+          where: { traccar_user_id: { [require('sequelize').Op.ne]: null } },
+          required: true
+        }],
+        attributes: ['id']
+      });
+      clientIdsToProcess = clients.map(c => c.id);
+    } else if (client_ids && Array.isArray(client_ids)) {
+      clientIdsToProcess = client_ids;
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Forneça client_ids (array) ou force_all (boolean)' 
+      });
+    }
+
+    if (clientIdsToProcess.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Nenhum cliente para processar',
+        processed: 0
+      });
+    }
+
+    logger.info(`🔄 Reconciliação manual iniciada para ${clientIdsToProcess.length} clientes`);
+    
+    const results = await TraccarAutomationService.reconcileMultipleClients(clientIdsToProcess);
+    
+    const stats = {
+      processed: results.length,
+      blocked: results.filter(r => r.action === 'blocked').length,
+      unblocked: results.filter(r => r.action === 'unblocked').length,
+      no_change: results.filter(r => r.action === 'none').length,
+      skipped: results.filter(r => r.skipped).length,
+      errors: results.filter(r => r.error).length
+    };
+
+    return res.json({
+      success: true,
+      message: `Reconciliação concluída: ${stats.blocked} bloqueados, ${stats.unblocked} desbloqueados`,
+      stats,
+      details: results
+    });
+
+  } catch (error) {
+    logger.error('Erro na reconciliação manual:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Erro na reconciliação manual',
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router;
