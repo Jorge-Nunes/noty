@@ -44,6 +44,8 @@ const verifyAsaasSignature = (req, res, next) => {
   }
 };
 
+// ROTA ANTIGA COMENTADA - Substituída pela implementação com reconciliação em tempo real (linha ~547)
+/*
 // Asaas webhook endpoint
 router.post('/asaas', verifyAsaasSignature, async (req, res) => {
   const startTime = Date.now();
@@ -178,6 +180,7 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
+*/
 
 async function handlePaymentReceived(payment, templateType) {
   let messageSent = false;
