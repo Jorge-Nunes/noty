@@ -577,15 +577,13 @@ router.post('/asaas', async (req, res) => {
       logger.warn(`⚠️ Cliente não encontrado para asaas_id=${paymentData.customer}`);
       // Política: logar e continuar (não bloqueia o webhook)
       await WebhookLog.create({
-        source: 'asaas',
         event_type: event,
-        external_id: paymentData.id,
-        payload: body,
-        status: 'ignored',
-        error_message: `Cliente não encontrado: ${paymentData.customer}`,
         client_name: paymentData.customer || 'Desconhecido',
         asaas_payment_id: paymentData.id,
         payment_value: paymentData.value || 0,
+        status: 'error',
+        webhook_payload: body,
+        error_details: { message: `Cliente não encontrado: ${paymentData.customer}` },
         ip_address: req.ip,
         user_agent: req.get('User-Agent'),
         message_sent: false
@@ -644,16 +642,14 @@ router.post('/asaas', async (req, res) => {
 
     // 4) Log de webhook
     await WebhookLog.create({
-      source: 'asaas',
       event_type: event,
-      external_id: paymentData.id,
-      payload: body,
-      status: 'processed',
       client_id: client.id,
       payment_id: payment.id,
       client_name: client.name,
       asaas_payment_id: paymentData.id,
       payment_value: paymentData.value || 0,
+      status: 'success',
+      webhook_payload: body,
       ip_address: req.ip,
       user_agent: req.get('User-Agent'),
       message_sent: false
@@ -692,15 +688,13 @@ router.post('/asaas', async (req, res) => {
     try {
       const { WebhookLog } = require('../models');
       await WebhookLog.create({
-        source: 'asaas',
-        event_type: req.body?.event || 'UNKNOWN',
-        external_id: (req.body?.payment?.id) || null,
-        payload: req.body,
-        status: 'error',
-        error_message: err.message,
+        event_type: req.body?.event || 'PAYMENT_OVERDUE',
         client_name: req.body?.payment?.customer || 'Erro',
-        asaas_payment_id: req.body?.payment?.id || null,
+        asaas_payment_id: req.body?.payment?.id || 'unknown',
         payment_value: req.body?.payment?.value || 0,
+        status: 'error',
+        webhook_payload: req.body,
+        error_details: { message: err.message, stack: err.stack },
         ip_address: req.ip,
         user_agent: req.get('User-Agent'),
         message_sent: false
