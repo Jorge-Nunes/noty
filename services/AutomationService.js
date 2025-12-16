@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { sequelize, Client, Payment, MessageLog, Config } = require('../models');
 const EvolutionService = require('./EvolutionService');
 const TemplateService = require('./TemplateService');
+const AsaasService = require('./AsaasService');
 const logger = require('../utils/logger');
 
 class AutomationService {
@@ -33,9 +34,31 @@ class AutomationService {
     }
   }
 
+  async syncPaymentsBeforeAutomation(automationType) {
+    try {
+      logger.info(`Syncing payments with Asaas before ${automationType} automation...`);
+      
+      // Sync pending, overdue, received and confirmed payments to ensure data is up-to-date
+      const pendingResult = await AsaasService.syncPayments('PENDING');
+      const overdueResult = await AsaasService.syncPayments('OVERDUE');
+      const receivedResult = await AsaasService.syncPayments('RECEIVED');
+      const confirmedResult = await AsaasService.syncPayments('CONFIRMED');
+      
+      logger.info(`Sync completed for ${automationType}: PENDING=${pendingResult.total}, OVERDUE=${overdueResult.total}, RECEIVED=${receivedResult.total}, CONFIRMED=${confirmedResult.total}`);
+      return { pending: pendingResult, overdue: overdueResult, received: receivedResult, confirmed: confirmedResult };
+    } catch (error) {
+      logger.error(`Error syncing payments before ${automationType}:`, error);
+      // Don't throw error - continue with existing data but log the issue
+      return { error: error.message };
+    }
+  }
+
   async sendWarningNotifications() {
     try {
       logger.info('Starting warning notifications process...');
+
+      // Sync payments with Asaas before processing
+      await this.syncPaymentsBeforeAutomation('warning notifications');
 
       const warningDays = await this.getWarningDays();
       const warningDate = moment().add(warningDays, 'days').format('YYYY-MM-DD');
@@ -209,6 +232,9 @@ class AutomationService {
     try {
       logger.info('Starting due today notifications process...');
 
+      // Sync payments with Asaas before processing
+      await this.syncPaymentsBeforeAutomation('due today notifications');
+
       const today = moment().format('YYYY-MM-DD');
 
       // Get payments due today
@@ -354,6 +380,9 @@ class AutomationService {
   async sendOverdueNotifications() {
     try {
       logger.info('Starting overdue notifications process...');
+
+      // Sync payments with Asaas before processing
+      await this.syncPaymentsBeforeAutomation('overdue notifications');
 
       // Get overdue payments
       const payments = await Payment.findAll({
@@ -517,6 +546,9 @@ class AutomationService {
   async runDailyWarningsAndDueToday() {
     try {
       logger.info('Starting daily warnings and due today automation...');
+
+      // Sync payments with Asaas before processing
+      await this.syncPaymentsBeforeAutomation('daily warnings and due today');
 
       const warningResults = await this.sendWarningNotifications();
       const dueTodayResults = await this.sendDueTodayNotifications();

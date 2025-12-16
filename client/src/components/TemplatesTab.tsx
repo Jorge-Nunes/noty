@@ -58,12 +58,6 @@ const templateTypes = [
     color: 'error' as const
   },
   { 
-    type: 'payment_received', 
-    name: 'Pagamento Recebido', 
-    description: 'Mensagem de agradecimento quando o pagamento é recebido',
-    color: 'success' as const
-  },
-  { 
     type: 'payment_confirmed', 
     name: 'Pagamento Confirmado', 
     description: 'Mensagem enviada quando o pagamento é confirmado',
@@ -131,6 +125,9 @@ export const TemplatesTab: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery('templates', templatesAPI.getAll);
+
+  // Filter only active templates for cleaner interface
+  const activeTemplates = templatesData?.data?.templates?.filter((template: any) => template.is_active) || [];
 
   const saveTemplateMutation = useMutation(
     ({ type, data }: { type: string; data: any }) => templatesAPI.save(type, data),
@@ -233,7 +230,10 @@ export const TemplatesTab: React.FC = () => {
       </Alert>
 
       <List>
-        {templateTypes.map((typeConfig) => {
+        {templateTypes.filter((typeConfig) => {
+          const template = getTemplateByType(typeConfig.type);
+          return !template || template.is_active !== false;
+        }).map((typeConfig) => {
           const template = getTemplateByType(typeConfig.type);
           const isConfigured = !!template;
 

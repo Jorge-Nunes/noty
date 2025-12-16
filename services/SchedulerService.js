@@ -17,22 +17,42 @@ class SchedulerService {
     try {
       logger.info('Initializing scheduler service...');
 
-      // Get automation schedule from config
-      const pendingHourConfig = await Config.findOne({ where: { key: 'automation_hour_pending' } });
-      const overdueHourConfig = await Config.findOne({ where: { key: 'automation_hour_overdue' } });
+      // Get automation schedule from config (support both old and new formats)
+      let pendingTimeConfig = await Config.findOne({ where: { key: 'automation_time_pending' } });
+      let overdueTimeConfig = await Config.findOne({ where: { key: 'automation_time_overdue' } });
+      
+      // Migration support: check for old hour-only configs
+      if (!pendingTimeConfig) {
+        const oldConfig = await Config.findOne({ where: { key: 'automation_hour_pending' } });
+        if (oldConfig) {
+          const hour = parseInt(oldConfig.value) || 9;
+          pendingTimeConfig = { value: `${hour.toString().padStart(2, '0')}:00` };
+        }
+      }
+      if (!overdueTimeConfig) {
+        const oldConfig = await Config.findOne({ where: { key: 'automation_hour_overdue' } });
+        if (oldConfig) {
+          const hour = parseInt(oldConfig.value) || 11;
+          overdueTimeConfig = { value: `${hour.toString().padStart(2, '0')}:00` };
+        }
+      }
 
-      const pendingHour = pendingHourConfig ? parseInt(pendingHourConfig.value) : 9;
-      const overdueHour = overdueHourConfig ? parseInt(overdueHourConfig.value) : 11;
+      const pendingTime = pendingTimeConfig ? pendingTimeConfig.value : '09:00';
+      const overdueTime = overdueTimeConfig ? overdueTimeConfig.value : '11:00';
+      
+      // Parse time strings to get hour and minute
+      const [pendingHour, pendingMinute] = pendingTime.split(':').map(n => parseInt(n));
+      const [overdueHour, overdueMinute] = overdueTime.split(':').map(n => parseInt(n));
 
-      // Schedule warning and due today notifications (default: 9 AM)
-      this.scheduleJob('warning_and_due_today', `0 ${pendingHour} * * *`, async () => {
+      // Schedule warning and due today notifications (default: 9:00 AM)
+      this.scheduleJob('warning_and_due_today', `${pendingMinute} ${pendingHour} * * *`, async () => {
         await this.executeAutomation('warning_pending', async () => {
           return await AutomationService.runDailyWarningsAndDueToday();
         });
       });
 
-      // Schedule overdue notifications (default: 11 AM)
-      this.scheduleJob('overdue_notifications', `0 ${overdueHour} * * *`, async () => {
+      // Schedule overdue notifications (default: 11:00 AM)
+      this.scheduleJob('overdue_notifications', `${overdueMinute} ${overdueHour} * * *`, async () => {
         await this.executeAutomation('overdue_notification', async () => {
           return await AutomationService.sendOverdueNotifications();
         });
@@ -208,27 +228,47 @@ class SchedulerService {
     try {
       logger.info('Updating schedules from database...');
 
-      // Get updated schedule from config
-      const pendingHourConfig = await Config.findOne({ where: { key: 'automation_hour_pending' } });
-      const overdueHourConfig = await Config.findOne({ where: { key: 'automation_hour_overdue' } });
+      // Get updated schedule from config (support both old and new formats)
+      let pendingTimeConfig = await Config.findOne({ where: { key: 'automation_time_pending' } });
+      let overdueTimeConfig = await Config.findOne({ where: { key: 'automation_time_overdue' } });
+      
+      // Migration support: check for old hour-only configs
+      if (!pendingTimeConfig) {
+        const oldConfig = await Config.findOne({ where: { key: 'automation_hour_pending' } });
+        if (oldConfig) {
+          const hour = parseInt(oldConfig.value) || 9;
+          pendingTimeConfig = { value: `${hour.toString().padStart(2, '0')}:00` };
+        }
+      }
+      if (!overdueTimeConfig) {
+        const oldConfig = await Config.findOne({ where: { key: 'automation_hour_overdue' } });
+        if (oldConfig) {
+          const hour = parseInt(oldConfig.value) || 11;
+          overdueTimeConfig = { value: `${hour.toString().padStart(2, '0')}:00` };
+        }
+      }
 
-      const pendingHour = pendingHourConfig ? parseInt(pendingHourConfig.value) : 9;
-      const overdueHour = overdueHourConfig ? parseInt(overdueHourConfig.value) : 11;
+      const pendingTime = pendingTimeConfig ? pendingTimeConfig.value : '09:00';
+      const overdueTime = overdueTimeConfig ? overdueTimeConfig.value : '11:00';
+      
+      // Parse time strings to get hour and minute
+      const [pendingHour, pendingMinute] = pendingTime.split(':').map(n => parseInt(n));
+      const [overdueHour, overdueMinute] = overdueTime.split(':').map(n => parseInt(n));
 
       // Reschedule jobs with new times
-      this.scheduleJob('warning_and_due_today', `0 ${pendingHour} * * *`, async () => {
+      this.scheduleJob('warning_and_due_today', `${pendingMinute} ${pendingHour} * * *`, async () => {
         await this.executeAutomation('warning_pending', async () => {
           return await AutomationService.runDailyWarningsAndDueToday();
         });
       });
 
-      this.scheduleJob('overdue_notifications', `0 ${overdueHour} * * *`, async () => {
+      this.scheduleJob('overdue_notifications', `${overdueMinute} ${overdueHour} * * *`, async () => {
         await this.executeAutomation('overdue_notification', async () => {
           return await AutomationService.sendOverdueNotifications();
         });
       });
 
-      logger.info(`Schedules updated - Pending: ${pendingHour}h, Overdue: ${overdueHour}h`);
+      logger.info(`Schedules updated - Pending: ${pendingTime}, Overdue: ${overdueTime}`);
 
     } catch (error) {
       logger.error('Update schedules error:', error);

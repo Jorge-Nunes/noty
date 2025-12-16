@@ -14,9 +14,6 @@ import {
   Alert,
   Divider,
   CircularProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from '@mui/material';
 import {
   Settings,
@@ -25,7 +22,6 @@ import {
   Schedule,
   Save,
   Science,
-  ExpandMore,
   CheckCircle,
   Error,
   TrackChanges,
@@ -323,44 +319,42 @@ export const Config: React.FC = () => {
               Configurações de Automação
             </Typography>
 
-            {configsData?.data?.configs?.automation?.map(renderConfigField)}
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Configure os horários e opções para as automações diárias do sistema.
+              Use formato HH:MM para os horários (24h).
+            </Alert>
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Horário dos Avisos (HH:MM)"
+                  type="time"
+                  value={configs['automation_time_pending'] || '09:00'}
+                  onChange={(e) => handleConfigChange('automation_time_pending', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="Horário para envio de avisos de vencimento"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Horário das Cobranças Vencidas (HH:MM)"
+                  type="time"
+                  value={configs['automation_time_overdue'] || '11:00'}
+                  onChange={(e) => handleConfigChange('automation_time_overdue', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="Horário para envio de notificações de vencidos"
+                />
+              </Grid>
+            </Grid>
 
             <Divider sx={{ my: 3 }} />
 
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="subtitle1">Horários das Automações</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  Configure os horários em que as automações serão executadas diariamente.
-                  Use formato 24h (0-23).
-                </Alert>
-
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Hora dos Avisos (0-23h)"
-                      type="number"
-                      value={configs['automation_hour_pending'] || '9'}
-                      onChange={(e) => handleConfigChange('automation_hour_pending', e.target.value)}
-                      inputProps={{ min: 0, max: 23 }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Hora das Cobranças Vencidas (0-23h)"
-                      type="number"
-                      value={configs['automation_hour_overdue'] || '11'}
-                      onChange={(e) => handleConfigChange('automation_hour_overdue', e.target.value)}
-                      inputProps={{ min: 0, max: 23 }}
-                    />
-                  </Grid>
-                </Grid>
-              </AccordionDetails>
-            </Accordion>
+            {configsData?.data?.configs?.automation?.filter((config: any) => 
+              !config.key.includes('automation_hour') && 
+              !config.key.includes('automation_time')
+            ).map(renderConfigField)}
 
             <Box sx={{ mt: 3 }}>
               <Button

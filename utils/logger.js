@@ -2,7 +2,7 @@ const winston = require('winston');
 const path = require('path');
 require('dotenv').config();
 
-const { combine, timestamp, errors, json, colorize, simple } = winston.format;
+const { combine, timestamp, errors, json, colorize, printf } = winston.format;
 
 // Create logs directory if it doesn't exist
 const fs = require('fs');
@@ -11,11 +11,26 @@ if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
 
+const TIME_ZONE = process.env.TZ || 'America/Sao_Paulo';
+const formatTimestamp = () => {
+  try {
+    const s = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: TIME_ZONE,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    }).format(new Date());
+    return s.replace(' ', 'T');
+  } catch (e) {
+    return new Date().toISOString();
+  }
+};
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: combine(
     errors({ stack: true }),
-    timestamp(),
+    timestamp({ format: formatTimestamp }),
     json()
   ),
   defaultMeta: { service: 'noty-app' },
@@ -41,7 +56,7 @@ const logger = winston.createLogger({
       maxFiles: 10,
       format: combine(
         winston.format.label({ label: 'AUTOMATION' }),
-        timestamp(),
+        timestamp({ format: formatTimestamp }),
         json()
       )
     })
@@ -53,7 +68,11 @@ if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: combine(
       colorize(),
-      simple()
+      timestamp({ format: formatTimestamp }),
+      printf(({ level, message, timestamp, ...meta }) => {
+        const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+        return `${timestamp} ${level}: ${message}${metaStr}`;
+      })
     )
   }));
 }

@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { Payment, Client, MessageLog, WebhookLog } = require('../models');
+const { Payment, Client, MessageLog, WebhookLog, Config } = require('../models');
 const EvolutionService = require('../services/EvolutionService');
 const TemplateService = require('../services/TemplateService');
 const TraccarAutomationService = require('../services/TraccarAutomationService');
@@ -116,10 +116,21 @@ router.post('/asaas', verifyAsaasSignature, async (req, res) => {
     // Handle different events
     switch (event) {
       case 'PAYMENT_RECEIVED':
-        await handlePaymentReceived(dbPayment, 'payment_received');
+        // Check if should send payment received message (configurable)
+        const sendReceivedConfig = await Config.findOne({ where: { key: 'send_payment_received_msg' } });
+        const shouldSendReceived = sendReceivedConfig?.value === 'true';
+        
+        if (shouldSendReceived) {
+          await handlePaymentReceived(dbPayment, 'payment_received');
+          logger.info(`Payment received message sent for client ${client.name}: ${payment.value}`);
+        } else {
+          // Only log the received event, don't send message (avoiding redundancy)
+          logger.info(`Payment received for client ${client.name}: ${payment.value} - Waiting for confirmation`);
+        }
         break;
 
       case 'PAYMENT_CONFIRMED':
+        // Send only the confirmation message (more professional for PIX)
         await handlePaymentReceived(dbPayment, 'payment_confirmed');
         break;
 

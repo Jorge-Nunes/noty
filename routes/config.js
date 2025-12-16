@@ -294,6 +294,21 @@ router.put('/bulk/update', authMiddleware, adminMiddleware, async (req, res) => 
 
     logger.info(`Bulk configuration update by ${req.user.email}: ${JSON.stringify(results)}`);
 
+    // Check if automation schedules were updated and trigger reschedule
+    const automationUpdates = configs.filter(config => 
+      config.key.includes('automation_time') || config.key.includes('automation_hour')
+    );
+    
+    if (automationUpdates.length > 0) {
+      try {
+        const SchedulerService = require('../services/SchedulerService');
+        await SchedulerService.updateSchedules();
+        logger.info('Automation schedules updated after configuration change');
+      } catch (error) {
+        logger.error('Error updating schedules:', error);
+      }
+    }
+
     res.json({
       success: true,
       message: 'Configurações atualizadas',

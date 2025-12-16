@@ -120,17 +120,17 @@ async function initializeDatabase() {
         category: 'automation'
       },
       {
-        key: 'automation_hour_pending',
-        value: '9',
-        description: 'Hora para execução da automação de avisos (formato 24h)',
-        type: 'number',
+        key: 'automation_time_pending',
+        value: '09:00',
+        description: 'Horário para execução da automação de avisos (formato HH:MM)',
+        type: 'string',
         category: 'automation'
       },
       {
-        key: 'automation_hour_overdue',
-        value: '11',
-        description: 'Hora para execução da automação de vencidos (formato 24h)',
-        type: 'number',
+        key: 'automation_time_overdue',
+        value: '11:00',
+        description: 'Horário para execução da automação de vencidos (formato HH:MM)',
+        type: 'string',
         category: 'automation'
       },
 
@@ -153,6 +153,13 @@ async function initializeDatabase() {
         key: 'notifications_enabled',
         value: 'true',
         description: 'Notificações automáticas habilitadas',
+        type: 'boolean',
+        category: 'automation'
+      },
+      {
+        key: 'send_payment_received_msg',
+        value: 'false',
+        description: 'Enviar mensagem ao receber pagamento (além da confirmação)',
         type: 'boolean',
         category: 'automation'
       }

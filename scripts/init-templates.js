@@ -65,7 +65,7 @@ Entre em contato conosco para negociar!`,
   {
     type: 'payment_received',
     name: 'Pagamento Recebido',
-    description: 'Mensagem de agradecimento quando o pagamento é recebido',
+    description: 'Template desabilitado - sistema otimizado para enviar apenas confirmação final',
     template: `Olá {{client.name}}! ✅
 
 Recebemos seu pagamento da {{company.name}}!
@@ -78,23 +78,23 @@ Recebemos seu pagamento da {{company.name}}!
 
 Precisando de algo? Estamos sempre à disposição!`,
     variables: ['client.name', 'company.name', 'payment.value_formatted', 'payment.payment_date_formatted', 'payment.asaas_id'],
-    is_active: true
+    is_active: false
   },
   {
     type: 'payment_confirmed',
     name: 'Pagamento Confirmado',
-    description: 'Mensagem enviada quando o pagamento é confirmado pelo banco',
-    template: `Olá {{client.name}}! ✅ CONFIRMADO
+    description: 'Mensagem enviada quando o pagamento é confirmado (única mensagem enviada)',
+    template: `Olá {{client.name}}! ✅
 
-Seu pagamento da {{company.name}} foi CONFIRMADO pelo banco!
+Seu pagamento foi confirmado com sucesso!
 
 💰 Valor: {{payment.value_formatted}}
-📅 Confirmado em: {{payment.payment_date_formatted}}
+📅 Data: {{payment.payment_date_formatted}}
 🆔 Comprovante: {{payment.asaas_id}}
 
-✨ Pagamento processado com sucesso! Muito obrigado pela pontualidade.
+🎉 Obrigado! Seu serviço está garantido e sua conta está em dia.
 
-Continue conosco e tenha sempre o melhor serviço!`,
+Precisando de algo? Estamos sempre à disposição!`,
     variables: ['client.name', 'company.name', 'payment.value_formatted', 'payment.payment_date_formatted', 'payment.asaas_id'],
     is_active: true
   }
