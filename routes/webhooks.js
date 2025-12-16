@@ -582,7 +582,13 @@ router.post('/asaas', async (req, res) => {
         external_id: paymentData.id,
         payload: body,
         status: 'ignored',
-        error_message: `Cliente não encontrado: ${paymentData.customer}`
+        error_message: `Cliente não encontrado: ${paymentData.customer}`,
+        client_name: paymentData.customer || 'Desconhecido',
+        asaas_payment_id: paymentData.id,
+        payment_value: paymentData.value || 0,
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent'),
+        message_sent: false
       });
       return res.status(200).json({ success: true, ignored: true, reason: 'Cliente não encontrado' });
     }
@@ -644,7 +650,13 @@ router.post('/asaas', async (req, res) => {
       payload: body,
       status: 'processed',
       client_id: client.id,
-      payment_id: payment.id
+      payment_id: payment.id,
+      client_name: client.name,
+      asaas_payment_id: paymentData.id,
+      payment_value: paymentData.value || 0,
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+      message_sent: false
     });
 
     // 5) ⚡ RECONCILIAÇÃO EM TEMPO REAL ⚡
@@ -685,7 +697,13 @@ router.post('/asaas', async (req, res) => {
         external_id: (req.body?.payment?.id) || null,
         payload: req.body,
         status: 'error',
-        error_message: err.message
+        error_message: err.message,
+        client_name: req.body?.payment?.customer || 'Erro',
+        asaas_payment_id: req.body?.payment?.id || null,
+        payment_value: req.body?.payment?.value || 0,
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent'),
+        message_sent: false
       });
     } catch (logError) {
       logger.error('❌ Erro ao salvar log de webhook com erro:', logError);
