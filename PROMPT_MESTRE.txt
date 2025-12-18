@@ -1,0 +1,442 @@
+PROMPT MESTRE (COLE EM OUTRA IA)
+
+[PT-BR]
+
+Contexto e objetivo
+- Construa uma aplicação full-stack (backend Node.js/Express + frontend React/TypeScript + PostgreSQL/Sequelize) chamada NOTY, um sistema de cobrança automatizada com:
+  - Integração Asaas (clientes, cobranças, status de pagamentos)
+  - Integração Evolution (API de WhatsApp) para envio de mensagens
+  - Integração Traccar (bloqueio/desbloqueio de usuários/dispositivos, notificações, reconciliação)
+  - Automação por agendamentos (cron) para avisos, vencidos, reconciliação e rotinas
+  - Templates de mensagens parametrizados
+  - Webhooks (Asaas e Evolution) para eventos (pagamento, status, entrega, etc.)
+  - Dashboard com KPIs e gráficos
+  - Autenticação JWT com papéis (admin, operator, viewer)
+  - Painéis de gestão: Clientes, Pagamentos, Templates, Traccar, Configurações, Automação
+
+Stack e padrões
+- Backend: Node.js (>=16), Express, Sequelize, PostgreSQL, JWT, Joi (validação), Winston (logs), node-cron.
+- Frontend: React 18 + TypeScript, MUI v5, React Router v6, React Query, Axios, Recharts, React Hook Form + Yup.
+- Organização
+  - server.js: bootstrap do servidor, middlewares, rotas, inicializações de serviços e agendadores.
+  - config/database.js: conexão Sequelize com Postgres.
+  - models: Sequelize models (User, Client, Payment, MessageTemplate, Config, AutomationLog, MessageLog, WebhookLog, TraccarIntegration) + associações em models/index.js.
+  - middleware/auth.js: authMiddleware (JWT), adminMiddleware, operatorMiddleware.
+  - routes: auth, dashboard, clients, payments, templates, automation, config, webhooks, traccar, payment-status, evolution (se necessário).
+  - services: AsaasService, TraccarService, TraccarAutomationService, TraccarNotificationService, AutomationService, PaymentStatusService, TemplateService, EvolutionService, SchedulerService, utils/logger.
+  - scripts: init-database.js (seed inicial: usuário admin, configs default, templates), init-templates.js, init-traccar-templates.js, verify-database.js, migrations utilitárias.
+  - client: app React TS com páginas: Dashboard, Clients, Payments, Config, Automation, Profile, NotFound; componentes: DataGrid responsivo, PaymentsChart, TemplatesTab, TraccarActions, WebhookActionsCard; AuthContext com login/verify/getProfile.
+
+Requisitos funcionais detalhados
+
+1) Autenticação e autorização
+- Login com email/senha (hash com bcryptjs).
+- JWT no header Authorization: Bearer.
+- Papéis: admin, operator, viewer.
+- Endpoints:
+  - POST /api/auth/login
+  - GET /api/auth/verify (valida token e retorna perfil)
+  - GET /api/auth/profile (dados do usuário autenticado)
+- Middleware:
+  - authMiddleware: valida token, verifica usuário ativo.
+  - adminMiddleware: apenas admin.
+  - operatorMiddleware: admin e operator.
+
+2) Clientes (Asaas)
+- Model Client (tabela clients): campos
+  - id (UUID), asaas_id (string, único, obrigatório), name (string), email (email), phone (string, nullable), mobile_phone (string), cpf_cnpj (string, único), company, address, address_number, complement, province, city, state, postal_code, observations (text), is_active (bool, default true), notifications_enabled (bool, default true), last_sync (date), created_at, updated_at.
+- Funções:
+  - CRUD local
+  - Sincronizar com Asaas (importar/atualizar)
+  - Flags de notificação
+- Endpoints:
+  - GET /api/clients (listar/paginar/filtrar)
+  - GET /api/clients/:id
+  - POST /api/clients
+  - PUT /api/clients/:id
+  - DELETE /api/clients/:id
+  - POST /api/clients/sync (sincroniza com Asaas; cria/atualiza clients)
+- Integração Asaas:
+  - AsaasService com axios, baseURL e API key via env.
+  - Métodos: listar clientes, listar/obter cobranças, etc.
+  - Armazene last_sync.
+
+3) Pagamentos (Asaas)
+- Model Payment (tabela payments): campos
+  - id (UUID), asaas_id (string único obrigatório), client_id (FK clients), invoice_url (text), bank_slip_url (text), value (decimal), net_value, original_value, interest_value (default 0), description, billing_type (enum: BOLETO|CREDIT_CARD|PIX|UNDEFINED; default BOLETO), status (enum: PENDING, RECEIVED, CONFIRMED, OVERDUE, …), due_date (dateonly), original_due_date, payment_date, client_payment_date, installment (int), external_reference (string), notification_disabled (bool), authorized_only (bool), last_warning_sent (date), warning_count (int), last_overdue_sent (date), overdue_count (int), last_sync (date), created_at, updated_at.
+- Funções:
+  - CRUD local (normalmente leitura)
+  - Sincronização com Asaas, atualização de status, datas e URLs
+  - Status-service agregando contagens por data/status
+- Endpoints:
+  - GET /api/payments (listar/paginar/filtrar por status, cliente, intervalo, etc.)
+  - GET /api/payments/:id
+  - POST /api/payments/sync (sincroniza com Asaas)
+  - GET /api/payment-status/overview (agregados por dia e status para o dashboard)
+- Webhook Asaas (ver seção webhooks)
+
+4) Templates de mensagens
+- Model MessageTemplate (tabela message_templates): campos
+  - id (UUID), type (enum único): warning, due_today, overdue, payment_received, payment_confirmed, traccar_block, traccar_unblock, traccar_warning, traccar_warning_threshold, traccar_warning_final
+  - name (string), description (text), template (text), variables (JSONB array), is_active (bool), created_at, updated_at
+- TemplateService:
+  - Gerencia placeholders (ex: {client_name}, {due_date}, {value}, {invoice_url}, {status}, {days_overdue}, etc.).
+  - Renderização segura (escape, default values).
+- Endpoints:
+  - GET /api/templates
+  - GET /api/templates/:id
+  - POST /api/templates
+  - PUT /api/templates/:id
+  - DELETE /api/templates/:id
+  - POST /api/templates/render (opcional, para preview com dados de exemplo)
+
+5) Configurações (chaves e parâmetros)
+- Model Config (tabela configs): campos
+  - id (UUID), key (string único), value (text), description (text), type (enum: string|number|boolean|json), category (enum: asaas|evolution|automation|general; default general), is_active (bool), created_at, updated_at
+- Chaves típicas:
+  - asaas.api_key, asaas.base_url
+  - evolution.base_url, evolution.instance, evolution.token
+  - automation.warning_days_before_due (int), automation.overdue_first_day_offset, automation.schedule_cron_expressions (json)
+  - general.frontend_url
+  - traccar.base_url, traccar.token, traccar.mapping_priority (EMAIL|PHONE|MANUAL)
+- Endpoints:
+  - GET /api/config
+  - PUT /api/config (update em lote)
+  - GET /api/config/:key
+  - PUT /api/config/:key
+
+6) Integração Evolution (WhatsApp)
+- EvolutionService:
+  - Inicialização baseada em configs (instance, token, base_url).
+  - Métodos: enviar mensagem de texto e template (se aplicável), checar status da sessão, etc.
+- Uso:
+  - AutomationService e TraccarNotificationService utilizam EvolutionService para enviar mensagens conforme templates.
+- Webhook Evolution:
+  - Recebe eventos de entrega, leitura, falha, etc.
+  - Persiste em WebhookLog e/ou MessageLog (se houver).
+- Resiliência e logs em caso de falha.
+
+7) Integração Traccar
+- Model TraccarIntegration (tabela traccar_integrations):
+  - id (UUID), client_id (FK único), traccar_user_id (int), traccar_email (string), traccar_phone (string), mapping_method (enum: EMAIL|PHONE|MANUAL|NOT_MAPPED; default NOT_MAPPED), is_blocked (bool), block_reason (text), auto_block_enabled (bool, default true), last_sync_at (date), last_block_at (date), last_unblock_at (date), sync_errors (text), traccar_user_data (JSONB), timestamps + índices úteis.
+- TraccarService:
+  - axios com baseURL/token do Traccar.
+  - Métodos para listar/obter usuário, mapear por email/telefone, bloquear/desbloquear (por atributo de usuário ou via devices/groups, conforme o padrão), e armazenar cache em traccar_user_data.
+- TraccarAutomationService:
+  - Lógica de bloqueio/desbloqueio automático baseada em status de pagamento (OVERDUE => bloquear; RECEIVED/CONFIRMED => desbloquear), com registros em AutomationLog.
+  - Reconciliação de mapeamentos (EMAIL/PHONE) e atualização dos dados em TraccarIntegration.
+- TraccarNotificationService:
+  - Envio de mensagens específicas para eventos de bloqueio, desbloqueio, avisos e thresholds usando MessageTemplate e EvolutionService.
+- Endpoints principais (em /api/traccar):
+  - GET /status (conexão e métricas básicas)
+  - POST /map (executa tentativa de mapeamento para clientes)
+  - POST /block/:clientId
+  - POST /unblock/:clientId
+  - POST /sync (reconciliação completa de integrações)
+  - GET /integrations (listar integrações, filtros por status/mapeamento)
+  - PUT /integrations/:id (atualizar flags como auto_block_enabled, mapping_method manual)
+  - POST /notify/:clientId (dispara notificação baseada em template)
+
+8) Automação (agendamentos)
+- SchedulerService + node-cron:
+  - Jobs:
+    - Sincronizar pagamentos com Asaas (ex: a cada 15 min)
+    - Enviar avisos antes do vencimento (warning_days_before_due)
+    - Notificar vencidos (overdue) com escalonamento (first, threshold, final)
+    - Reconciliação Traccar (mapear clientes, atualizar bloqueios se necessário)
+    - Limpeza/housekeeping (opcional)
+  - Cada execução cria registro em AutomationLog:
+    - Campos: user_id (pode ser null para job automático), automation_type (‘warning_pending’, ‘overdue_notification’, ‘manual_sync’, etc.), status (‘started’, ‘completed’, ‘failed’, ‘partial’), contadores, tempos, resumo JSONB, started_at, completed_at.
+- AutomationService:
+  - Métodos para: gerar lista de destinatários, selecionar templates conforme situação, renderizar e enviar mensagens, atualizar contadores/flags em Payment.
+  - Cuida de idempotência básica para evitar reenvio massivo (usa campos last_warning_sent/last_overdue_sent e *_count).
+
+9) Webhooks
+- routes/webhooks.js implementa:
+  - POST /api/webhooks/asaas
+    - Eventos de pagamento: atualização de status (RECEIVED, CONFIRMED, OVERDUE etc.), atualização de Payment e desbloqueio/bloqueio no Traccar quando aplicável.
+  - POST /api/webhooks/evolution
+    - Eventos de entrega, leitura, falha; grava em WebhookLog e/ou MessageLog; pode acionar retentativas.
+- Segurança:
+  - Valide assinatura/secret quando disponível.
+  - Registre payload (sanitizado) em WebhookLog.
+
+10) Dashboard e relatórios
+- routes/dashboard.js:
+  - KPIs: contagem clientes ativos, pagamentos pendentes/vencidos/recebidos, últimos 7-30 dias em séries temporais.
+- routes/payment-status.js:
+  - Agregados por dia/status para gráfico.
+- Frontend:
+  - PaymentsChart (Recharts) empilhando PENDING/OVERDUE/RECEIVED por dia.
+  - RecentActivities, StatsCard, WebhookActionsCard conforme necessário.
+
+11) Frontend (React/TS/MUI)
+- Páginas:
+  - /login (público)
+  - /dashboard, /clients, /payments, /config, /automation, /profile, 404
+- AuthContext:
+  - login(email, password) -> JWT no localStorage; verify e getProfile
+  - logout, refreshUser
+- ProtectedRoute: exige autenticação.
+- API client:
+  - axios com interceptors para Authorization
+  - namespaces: authAPI, clientsAPI, paymentsAPI, configAPI, templatesAPI, automationAPI, traccarAPI, webhooksAPI, dashboardAPI, paymentStatusAPI
+- Componentes:
+  - ResponsiveDataGrid, PaymentsChart, TemplatesTab, TraccarActions, WebhookActionsCard
+- Estilo: MUI Theme responsivo.
+
+12) Segurança e resiliência
+- Helmet, CORS com FRONTEND_URL.
+- Rate limiting em /api (desligável em dev).
+- Tratamento centralizado de erros.
+- Logs com winston.
+- Validação Joi nos payloads.
+- Configs sensíveis protegidas.
+
+13) Banco de dados e associações
+- models/index.js:
+  - Client hasMany Payment, MessageLog, WebhookLog
+  - Payment belongsTo Client; Payment hasMany MessageLog e WebhookLog
+  - User hasMany MessageLog e AutomationLog
+  - Client hasOne TraccarIntegration
+- Seeds:
+  - Usuário admin padrão
+  - Configurações mínimas
+  - Templates padrão (warning, due_today, overdue, payment_received, payment_confirmed, traccar_*)
+
+14) Variáveis de ambiente (.env exemplo)
+- PORT=5000
+- NODE_ENV=development
+- FRONTEND_URL=http://localhost:3000
+- JWT_SECRET=troque-esta-chave
+- DATABASE_URL=postgres://user:pass@host:5432/db
+- ASAAS_BASE_URL=https://api.asaas.com/v3
+- ASAAS_API_KEY=xxxx
+- EVOLUTION_BASE_URL=https://evolution.instance.url
+- EVOLUTION_INSTANCE=instanceName
+- EVOLUTION_TOKEN=xxxx
+- TRACCAR_BASE_URL=https://traccar.instance.url
+- TRACCAR_TOKEN=xxxx
+- TZ=America/Sao_Paulo
+
+15) Rotas da API (resumo)
+- /api/auth: login, verify, profile
+- /api/dashboard: KPIs e datasets
+- /api/clients: CRUD + sync
+- /api/payments: listagem/detalhe + sync
+- /api/payment-status: agregados por data/status
+- /api/templates: CRUD + render/preview
+- /api/config: get/put
+- /api/automation: gatilhos manuais
+- /api/webhooks: asaas, evolution
+- /api/traccar: status, map, block, unblock, sync, integrações, notify
+
+16) Boot e inicialização (server.js)
+- Carregar env, helmet/cors/body parsers.
+- Montar rotas e servir build do React em produção.
+- Conectar ao Postgres (sequelize.authenticate()), sincronizar (sequelize.sync()).
+- initializeDatabase() para seeds.
+- Inicializar EvolutionService, TraccarService, TraccarNotificationService (com try/catch e logs).
+- Inicializar SchedulerService (cron jobs).
+- Graceful shutdown em SIGINT/SIGTERM.
+
+17) UI/UX esperado
+- Dashboard com KPIs e gráfico temporal.
+- Clients com filtros, edição e sync Asaas.
+- Payments com filtros, links de boleto/fatura, sync.
+- Config com editor por categorias.
+- Automation com gatilhos e logs recentes.
+- Traccar com lista de integrações e ações.
+- Templates com CRUD e preview.
+
+18) Regras de automação e negócio
+- Avisos antes do vencimento (warning/due_today), atualizar *_warning_* em Payment.
+- Vencidos: enviar overdue (escalonamento), e bloquear no Traccar se auto_block_enabled.
+- Recebidos/Confirmados: enviar payment_* e desbloquear no Traccar.
+- Reconciliação Traccar: mapear por EMAIL/PHONE, respeitar MANUAL; atualizar cache e sync_errors.
+- Idempotência via *_sent e *_count.
+- Observabilidade via AutomationLog/WebhookLog/MessageLog.
+
+19) Qualidade e segurança
+- Validar inputs, sanitizar logs.
+- Rate limit, erros centralizados, logs claros.
+- Documentar API com OpenAPI 3 (principais endpoints e schemas).
+
+20) Entregáveis
+- Backend e frontend estruturados.
+- Script de init do banco + seeds.
+- Build frontend servido pelo backend.
+- .env.example.
+- README com instruções de dev e prod.
+
+Aceite e testes mínimos
+- Login/JWT e papéis.
+- CRUD de templates com preview.
+- Sync de clientes/pagamentos com Asaas (ou mocks).
+- Webhooks Asaas atualizando Payment e automatismos.
+- Evolution enviando mensagem (ou mock).
+- Traccar: mapear/bloquear/desbloquear/reconciliar (ou mock).
+- Dashboard com KPIs e gráfico.
+- Cron jobs com registros em AutomationLog.
+
+Observações
+- Não hard-code chaves. Use Config + env.
+- Centralize templates/variáveis.
+- UI responsiva.
+- Erros não devem derrubar o serviço.
+
+---
+
+[EN]
+
+Master Prompt (Paste into another AI)
+
+Context & goal
+- Build a full-stack application (Node.js/Express backend + React/TypeScript frontend + PostgreSQL/Sequelize) called NOTY, an automated billing system with:
+  - Asaas integration (customers, invoices, payment status)
+  - Evolution (WhatsApp) integration for message sending
+  - Traccar integration (block/unblock users/devices, notifications, reconciliation)
+  - Scheduled automation (cron) for reminders, overdue flows, reconciliation
+  - Parameterized message templates
+  - Webhooks (Asaas and Evolution) for events (payment, status, delivery, etc.)
+  - Dashboard with KPIs and charts
+  - JWT auth with roles (admin, operator, viewer)
+  - Management UIs: Clients, Payments, Templates, Traccar, Settings, Automation
+
+Stack & conventions
+- Backend: Node.js (>=16), Express, Sequelize, PostgreSQL, JWT, Joi (validation), Winston (logs), node-cron.
+- Frontend: React 18 + TypeScript, MUI v5, React Router v6, React Query, Axios, Recharts, React Hook Form + Yup.
+- Structure
+  - server.js: server bootstrap, middlewares, routes, service initializers, schedulers.
+  - config/database.js: Sequelize/Postgres connection.
+  - models: Sequelize models (User, Client, Payment, MessageTemplate, Config, AutomationLog, MessageLog, WebhookLog, TraccarIntegration) + associations in models/index.js.
+  - middleware/auth.js: authMiddleware (JWT), adminMiddleware, operatorMiddleware.
+  - routes: auth, dashboard, clients, payments, templates, automation, config, webhooks, traccar, payment-status, evolution (if needed).
+  - services: AsaasService, TraccarService, TraccarAutomationService, TraccarNotificationService, AutomationService, PaymentStatusService, TemplateService, EvolutionService, SchedulerService, utils/logger.
+  - scripts: init-database.js (seed: admin user, default configs, templates), init-templates.js, init-traccar-templates.js, verify-database.js.
+  - client: React TS app pages: Dashboard, Clients, Payments, Config, Automation, Profile, NotFound; components: responsive DataGrid, PaymentsChart, TemplatesTab, TraccarActions, WebhookActionsCard; AuthContext with login/verify/getProfile.
+
+Functional requirements
+
+1) Auth & authorization
+- Email/password login (bcrypt hash).
+- JWT in Authorization: Bearer.
+- Roles: admin, operator, viewer.
+- Endpoints:
+  - POST /api/auth/login
+  - GET /api/auth/verify
+  - GET /api/auth/profile
+- Middleware:
+  - authMiddleware: validate token, check active user.
+  - adminMiddleware: admin only.
+  - operatorMiddleware: admin and operator.
+
+2) Clients (Asaas)
+- Client model (clients table):
+  - id (UUID), asaas_id (unique, required), name, email, phone (nullable), mobile_phone, cpf_cnpj (unique), company, address fields, observations, is_active (default true), notifications_enabled (default true), last_sync, timestamps.
+- Features:
+  - Local CRUD
+  - Sync with Asaas (import/update)
+  - Notification flags
+- Endpoints:
+  - GET/POST/PUT/DELETE /api/clients and GET by id
+  - POST /api/clients/sync
+- Integration:
+  - AsaasService via axios using baseURL and API key from env.
+
+3) Payments (Asaas)
+- Payment model (payments table):
+  - id (UUID), asaas_id (unique), client_id (FK), invoice_url, bank_slip_url, value, net_value, original_value, interest_value (default 0), description, billing_type enum, status enum, due_date, original_due_date, payment_date, client_payment_date, installment, external_reference, notification_disabled, authorized_only, last_warning_sent, warning_count, last_overdue_sent, overdue_count, last_sync, timestamps.
+- Features:
+  - Local read/CRUD as needed
+  - Sync with Asaas (update status/fields)
+  - Aggregations service for dashboard
+- Endpoints:
+  - GET /api/payments, GET /api/payments/:id
+  - POST /api/payments/sync
+  - GET /api/payment-status/overview
+- Webhook Asaas (see Webhooks)
+
+4) Message Templates
+- MessageTemplate model (message_templates):
+  - id (UUID), type (unique enum): warning, due_today, overdue, payment_received, payment_confirmed, traccar_block, traccar_unblock, traccar_warning, traccar_warning_threshold, traccar_warning_final; name, description, template (text), variables (JSONB), is_active, timestamps.
+- TemplateService:
+  - Placeholder management and safe rendering.
+- Endpoints:
+  - CRUD /api/templates and optional /render for previews.
+
+5) Settings (key-value)
+- Config model (configs): key (unique), value (text), description, type enum (string/number/boolean/json), category enum (asaas/evolution/automation/general), is_active, timestamps.
+- Typical keys:
+  - asaas.api_key/base_url; evolution.base_url/instance/token; automation.*; general.frontend_url; traccar.base_url/token/mapping_priority.
+- Endpoints: GET/PUT list and by key.
+
+6) Evolution (WhatsApp) integration
+- EvolutionService initialized by configs.
+- Send text/template messages; session status.
+- Used by AutomationService and TraccarNotificationService.
+- Webhook: delivery/read/failure events to WebhookLog/MessageLog.
+
+7) Traccar integration
+- TraccarIntegration model:
+  - client link, traccar_user_id/email/phone, mapping_method (EMAIL/PHONE/MANUAL/NOT_MAPPED), is_blocked, block_reason, auto_block_enabled (default true), last_sync_at, last_block_at, last_unblock_at, sync_errors, traccar_user_data cache, indexes.
+- TraccarService via axios with token.
+- TraccarAutomationService: auto block/unblock from payment status; reconciliation of mappings.
+- TraccarNotificationService: messages for block/unblock/warnings.
+- Endpoints under /api/traccar: status, map, block, unblock, sync, list/update integrations, notify.
+
+8) Automation (cron)
+- SchedulerService jobs:
+  - Asaas sync, pre-due warnings, overdue notifications (with thresholds), Traccar reconciliation, cleanup.
+- Each run writes AutomationLog with counters, durations, status and summary.
+- AutomationService handles recipient selection, template rendering/sending, idempotency using *_sent and *_count fields.
+
+9) Webhooks
+- /api/webhooks/asaas: update Payment status and trigger Traccar automations when applicable.
+- /api/webhooks/evolution: delivery/read/failure events; logs and retries as needed.
+- Validate signatures when available; sanitize and store payloads in WebhookLog.
+
+10) Dashboard & reports
+- /api/dashboard: KPIs
+- /api/payment-status/overview: daily/status aggregates for charts
+- Frontend: Recharts stacked bars for PENDING/OVERDUE/RECEIVED, KPI cards, recent activity.
+
+11) Frontend (React/TS/MUI)
+- Pages: login, dashboard, clients, payments, config, automation, profile, 404.
+- AuthContext with login/verify/profile; ProtectedRoute.
+- axios client with Authorization interceptor; API namespaces.
+- Components: ResponsiveDataGrid, PaymentsChart, TemplatesTab, TraccarActions, WebhookActionsCard.
+
+12) Security & resilience
+- Helmet, CORS, rate limiting (optional in dev), centralized error handling, Winston logs, Joi validation, protect sensitive config values.
+
+13) DB & associations
+- As in models/index.js: Client↔Payment, Client↔(MessageLog/WebhookLog), Payment↔(MessageLog/WebhookLog), User↔(MessageLog/AutomationLog), Client↔TraccarIntegration.
+- Seeds: admin user, minimal configs, default templates.
+
+14) Environment (.env example)
+- As listed in PT-BR section (PORT, JWT_SECRET, DATABASE_URL, ASAAS_*, EVOLUTION_*, TRACCAR_*, TZ, FRONTEND_URL).
+
+15) API routes (summary)
+- As listed: auth, dashboard, clients, payments, payment-status, templates, config, automation, webhooks, traccar.
+
+16) Boot (server.js)
+- Load env, middlewares, routes, serve React build in prod, connect and sync DB, run seeds, init Evolution/Traccar services, init SchedulerService, graceful shutdown.
+
+17) UX expectations
+- KPI cards + time-series chart; grids with filters; config editor; automation triggers with logs; traccar integration list/actions; template CRUD + preview.
+
+18) Automation rules
+- Pre-due warnings; overdue escalations; block/unblock based on status and auto_block_enabled; mapping reconciliation; idempotency via *_sent and *_count.
+
+19) Quality & security
+- Input validation, sanitized logs, rate limit, centralized errors, OpenAPI docs.
+
+20) Deliverables
+- Structured backend/frontend, DB init/seed, prod React build served by backend, .env.example, README with dev/prod instructions.
+
+Acceptance & minimal tests
+- JWT auth/roles, templates CRUD+preview, Asaas sync, Asaas webhooks updating payments and automations, Evolution send (or mock), Traccar map/block/unblock/reconcile (or mock), dashboard KPIs+chart, cron logs in AutomationLog.
+
+Notes
+- No hard-coded secrets; centralized templates/vars; responsive UI; resilience to errors.

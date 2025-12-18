@@ -40,7 +40,7 @@ router.get('/config', authMiddleware, async (req, res) => {
       where: {
         key: [
           'traccar_url', 'traccar_token', 'traccar_enabled',
-          'auto_block_enabled', 'block_after_count', 'unblock_on_payment',
+          'auto_block_enabled', 'block_strategy', 'block_after_count', 'warn_after_days', 'block_after_days', 'unblock_on_payment',
           'whitelist_clients', 'traccar_notifications_enabled'
         ]
       }
@@ -53,8 +53,11 @@ router.get('/config', authMiddleware, async (req, res) => {
       // Converte valores para tipos apropriados
       if (['traccar_enabled', 'auto_block_enabled', 'unblock_on_payment', 'traccar_notifications_enabled'].includes(config.key)) {
         value = value === 'true';
-      } else if (config.key === 'block_after_count') {
-        value = parseInt(value) || 3;
+      } else if (['block_after_count','warn_after_days','block_after_days'].includes(config.key)) {
+        value = parseInt(value);
+        if (Number.isNaN(value)) value = undefined;
+      } else if (config.key === 'block_strategy') {
+        value = (value === 'days') ? 'days' : 'count';
       } else if (config.key === 'whitelist_clients') {
         try {
           value = JSON.parse(value || '[]');
@@ -72,7 +75,10 @@ router.get('/config', authMiddleware, async (req, res) => {
       traccar_token: '',
       traccar_enabled: false,
       auto_block_enabled: true,
+      block_strategy: 'count',
       block_after_count: 3,
+      warn_after_days: 5,
+      block_after_days: 10,
       unblock_on_payment: true,
       whitelist_clients: [],
       traccar_notifications_enabled: true
@@ -122,14 +128,20 @@ router.post('/config', authMiddleware, async (req, res) => {
       // Aceita regras tanto no nível raiz quanto aninhadas
       rules: Joi.object({
         auto_block_enabled: Joi.boolean().default(true),
+        block_strategy: Joi.string().valid('count','days').default('count'),
         block_after_count: Joi.number().integer().min(1).max(20).default(3),
+        warn_after_days: Joi.number().integer().min(1).max(365).default(5),
+        block_after_days: Joi.number().integer().min(1).max(365).default(10),
         unblock_on_payment: Joi.boolean().default(true),
         whitelist_clients: Joi.array().items(Joi.string().uuid()).default([]),
         traccar_notifications_enabled: Joi.boolean().default(true)
       }).optional(),
       // Aceita também no nível raiz para compatibilidade
       auto_block_enabled: Joi.boolean().default(true),
+      block_strategy: Joi.string().valid('count','days').default('count'),
       block_after_count: Joi.number().integer().min(1).max(20).default(3),
+      warn_after_days: Joi.number().integer().min(1).max(365).default(5),
+      block_after_days: Joi.number().integer().min(1).max(365).default(10),
       unblock_on_payment: Joi.boolean().default(true),
       whitelist_clients: Joi.array().items(Joi.string().uuid()).default([]),
       traccar_notifications_enabled: Joi.boolean().default(true)
@@ -154,7 +166,10 @@ router.post('/config', authMiddleware, async (req, res) => {
     // Pega regras do objeto aninhado ou do nível raiz
     const rules = validatedData.rules || {
       auto_block_enabled: validatedData.auto_block_enabled,
+      block_strategy: validatedData.block_strategy,
       block_after_count: validatedData.block_after_count,
+      warn_after_days: validatedData.warn_after_days,
+      block_after_days: validatedData.block_after_days,
       unblock_on_payment: validatedData.unblock_on_payment,
       whitelist_clients: validatedData.whitelist_clients,
       traccar_notifications_enabled: validatedData.traccar_notifications_enabled
@@ -165,8 +180,18 @@ router.post('/config', authMiddleware, async (req, res) => {
       if (rules.auto_block_enabled !== undefined) {
         configsToSave.push({ key: 'auto_block_enabled', value: String(rules.auto_block_enabled) });
       }
+      // Migração suave: persiste novas chaves se presentes
+      if (rules.block_strategy !== undefined) {
+        configsToSave.push({ key: 'block_strategy', value: String(rules.block_strategy) });
+      }
       if (rules.block_after_count !== undefined) {
         configsToSave.push({ key: 'block_after_count', value: String(rules.block_after_count) });
+      }
+      if (rules.warn_after_days !== undefined) {
+        configsToSave.push({ key: 'warn_after_days', value: String(rules.warn_after_days) });
+      }
+      if (rules.block_after_days !== undefined) {
+        configsToSave.push({ key: 'block_after_days', value: String(rules.block_after_days) });
       }
       if (rules.unblock_on_payment !== undefined) {
         configsToSave.push({ key: 'unblock_on_payment', value: String(rules.unblock_on_payment) });

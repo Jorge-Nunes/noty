@@ -468,6 +468,16 @@ router.post('/default', authMiddleware, adminMiddleware, async (req, res) => {
       await config.update({ value: instanceName });
     }
 
+    // Invalida EvolutionService para refletir instantaneamente a nova instância
+    try {
+      const EvolutionService = require('../services/EvolutionService');
+      EvolutionService.invalidate();
+      await EvolutionService.initialize(); // opcionalmente já inicializa para validar
+      logger.info('EvolutionService invalidated and reinitialized after instance update');
+    } catch (error) {
+      logger.error('Erro ao reinicializar EvolutionService após update de instância:', error);
+    }
+
     res.json({ success: true, message: 'Instância padrão atualizada', data: { instanceName } });
   } catch (error) {
     logger.error('Erro ao definir instância padrão Evolution:', error.response?.data || error.message);

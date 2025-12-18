@@ -8,9 +8,9 @@ const router = express.Router();
 
 // Validation schema
 const templateSchema = Joi.object({
-  type: Joi.string().valid('warning', 'due_today', 'overdue', 'payment_received', 'payment_confirmed', 'traccar_block', 'traccar_unblock', 'traccar_warning').required(),
-  name: Joi.string().min(2).max(100).required(),
-  description: Joi.string().required(),
+  type: Joi.string().valid('warning', 'due_today', 'overdue', 'payment_received', 'payment_confirmed', 'traccar_block', 'traccar_unblock', 'traccar_warning', 'traccar_warning_threshold', 'traccar_warning_final').required(),
+  name: Joi.string().min(2).max(100).optional(),
+  description: Joi.string().optional(),
   template: Joi.string().required(),
   variables: Joi.alternatives().try(
     Joi.array().items(Joi.string()),
@@ -84,21 +84,43 @@ router.put('/:type', authMiddleware, adminMiddleware, async (req, res) => {
       });
     }
 
-    // Process variables field - ensure it's stored correctly
+    // Process variables field - ensure it's stored correctly in JSONB (array)
     const processedValue = { ...value };
-    if (processedValue.variables) {
+    if (processedValue.variables !== undefined) {
       if (typeof processedValue.variables === 'string') {
-        // If it's already a JSON string, keep as is
         try {
-          JSON.parse(processedValue.variables);
+          const parsed = JSON.parse(processedValue.variables);
+          processedValue.variables = Array.isArray(parsed) ? parsed : [String(parsed)];
         } catch (e) {
-          // If it's not valid JSON, wrap as array
-          processedValue.variables = JSON.stringify([processedValue.variables]);
+          processedValue.variables = [processedValue.variables];
         }
-      } else if (Array.isArray(processedValue.variables)) {
-        // If it's an array, convert to JSON string
-        processedValue.variables = JSON.stringify(processedValue.variables);
+      } else if (!Array.isArray(processedValue.variables)) {
+        processedValue.variables = [processedValue.variables];
       }
+    }
+
+    // Provide sensible defaults for required fields if omitted
+    const typeLabelMap = {
+      warning: 'Aviso de Vencimento',
+      due_today: 'Vencimento Hoje',
+      overdue: 'Pagamento Vencido',
+      payment_received: 'Pagamento Recebido',
+      payment_confirmed: 'Pagamento Confirmado',
+      traccar_block: 'Bloqueio Traccar',
+      traccar_unblock: 'Desbloqueio Traccar',
+      traccar_warning: 'Aviso Traccar',
+      traccar_warning_threshold: 'Aviso de Limite Traccar',
+      traccar_warning_final: 'Aviso Final Traccar'
+    };
+
+    const humanize = (t) => typeLabelMap[t] || t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    if (!processedValue.name) {
+      processedValue.name = humanize(processedValue.type);
+    }
+
+    if (!processedValue.description) {
+      processedValue.description = `Template para ${processedValue.name}`;
     }
 
     const [template, created] = await MessageTemplate.upsert(processedValue, {
@@ -204,7 +226,7 @@ router.post('/:type/test', authMiddleware, async (req, res) => {
     };
 
     // Add specific data for Traccar templates
-    if (['traccar_block', 'traccar_unblock', 'traccar_warning'].includes(req.params.type)) {
+    if (['traccar_block', 'traccar_unblock', 'traccar_warning', 'traccar_warning_threshold', 'traccar_warning_final'].includes(req.params.type)) {
       sampleData = {
         ...sampleData,
         overdue_amount: 'R$ 189,30',

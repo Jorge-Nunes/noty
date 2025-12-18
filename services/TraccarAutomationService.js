@@ -102,7 +102,10 @@ class TraccarAutomationService {
       const configs = await Config.findAll({
         where: {
           key: [
+            'block_strategy',
             'block_after_count',
+            'warn_after_days',
+            'block_after_days',
             'unblock_on_payment',
             'whitelist_clients'
           ]
@@ -110,7 +113,10 @@ class TraccarAutomationService {
       });
 
       const rules = {
+        block_strategy: 'count',
         block_after_count: 3,
+        warn_after_days: 5,
+        block_after_days: 10,
         unblock_on_payment: true,
         whitelist_clients: []
       };
@@ -120,6 +126,10 @@ class TraccarAutomationService {
 
         if (config.key === 'block_after_count') {
           value = parseInt(value) || 3;
+        } else if (config.key === 'warn_after_days') {
+          value = parseInt(value) || 5;
+        } else if (config.key === 'block_after_days') {
+          value = parseInt(value) || 10;
         } else if (config.key === 'unblock_on_payment') {
           value = value === 'true';
         } else if (config.key === 'whitelist_clients') {
@@ -128,6 +138,8 @@ class TraccarAutomationService {
           } catch (e) {
             value = [];
           }
+        } else if (config.key === 'block_strategy') {
+          value = (value === 'days') ? 'days' : 'count';
         }
 
         rules[config.key] = value;
@@ -236,20 +248,27 @@ class TraccarAutomationService {
       for (const integration of integrations) {
         const client = integration.client;
 
-        // Verifica se o cliente existe (pode ser null se foi deletado)
         if (!client || !client.payments) {
           logger.warn(`Integração ${integration.id} não tem cliente ou pagamentos associados`);
           continue;
         }
 
         const overduePayments = client.payments;
-
-        // Verifica critério simplificado: apenas quantidade de cobranças
         const overdueCount = overduePayments.length;
         const totalOverdueAmount = overduePayments.reduce((sum, payment) => sum + parseFloat(payment.value), 0);
 
-        // Lógica simplificada: apenas conta as cobranças em atraso
-        const shouldBlock = (overdueCount >= rules.block_after_count);
+        let shouldBlock = false;
+        let oldestOverdueDays = 0;
+
+        if (rules.block_strategy === 'days') {
+          const now = new Date();
+          const oldest = overduePayments.sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0];
+          oldestOverdueDays = oldest ? Math.floor((now.getTime() - new Date(oldest.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          shouldBlock = oldestOverdueDays >= (rules.block_after_days || 0);
+        } else {
+          // Default: count strategy
+          shouldBlock = (overdueCount >= rules.block_after_count);
+        }
 
         if (shouldBlock) {
           candidates.push({
@@ -257,7 +276,8 @@ class TraccarAutomationService {
             client,
             overduePayments,
             overdueCount,
-            totalOverdueAmount
+            totalOverdueAmount,
+            oldestOverdueDays
           });
         }
       }
@@ -298,10 +318,17 @@ class TraccarAutomationService {
       // Filtra clientes que estão abaixo do limite de bloqueio
       const candidates = integrations.filter(integration => {
         const overduePayments = integration.client.payments || [];
-        const overdueCount = overduePayments.length;
+        if (!overduePayments.length) return true; // sem atrasos -> desbloqueia
 
-        // Se a regra é bloquear após X, desbloqueia se tiver menos que X
-        return overdueCount < rules.block_after_count;
+        if (rules.block_strategy === 'days') {
+          const now = new Date();
+          const oldest = overduePayments.sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0];
+          const oldestDays = oldest ? Math.floor((now.getTime() - new Date(oldest.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          return oldestDays < (rules.block_after_days || 0);
+        } else {
+          const overdueCount = overduePayments.length;
+          return overdueCount < rules.block_after_count;
+        }
       });
 
       return candidates.map(integration => ({
@@ -500,14 +527,27 @@ class TraccarAutomationService {
 
         const overduePayments = client.payments;
 
-        // Verifica se deve receber aviso baseado apenas na quantidade
         const overdueCount = overduePayments.length;
         const totalOverdueAmount = overduePayments.reduce((sum, payment) => sum + parseFloat(payment.value), 0);
 
-        // Nova lógica: avisa APENAS quando está exatamente no limiar (count = limit - 1)
-        const shouldWarn = (overdueCount === (rules.block_after_count - 1));
+        let shouldWarn = false;
+        let daysUntilBlock = 0;
+        let oldestOverdueDays = 0;
 
-        // Verifica se já enviou aviso nas últimas 24h
+        if (rules.block_strategy === 'days') {
+          const now = new Date();
+          const oldest = overduePayments.sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0];
+          oldestOverdueDays = oldest ? Math.floor((now.getTime() - new Date(oldest.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          const warnThreshold = rules.warn_after_days || 0;
+          const blockThreshold = rules.block_after_days || 0;
+          shouldWarn = oldestOverdueDays >= warnThreshold && oldestOverdueDays < blockThreshold;
+          daysUntilBlock = Math.max(0, blockThreshold - oldestOverdueDays);
+        } else {
+          // quantidade: avisa quando estiver exatamente no limiar (count = limit - 1)
+          shouldWarn = (overdueCount === (rules.block_after_count - 1));
+          daysUntilBlock = 0;
+        }
+
         const shouldSendWarning = await TraccarNotificationService.shouldSendWarning(client.id);
 
         if (shouldWarn && shouldSendWarning) {
@@ -517,7 +557,8 @@ class TraccarAutomationService {
             overduePayments,
             overdueCount,
             totalOverdueAmount,
-            daysUntilBlock: 0 // Não relevante na lógica simplificada
+            oldestOverdueDays,
+            daysUntilBlock
           });
         }
       }
@@ -620,7 +661,18 @@ class TraccarAutomationService {
       await TraccarService.initialize();
 
       // Determina ação necessária
-      const shouldBeBlocked = overdueCount >= rules.block_after_count;
+      let shouldBeBlocked = false;
+      if (rules.block_strategy === 'days') {
+        if (overduePayments.length === 0) {
+          shouldBeBlocked = false;
+        } else {
+          const oldest = overduePayments.sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0];
+          const oldestDays = oldest ? Math.floor((Date.now() - new Date(oldest.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          shouldBeBlocked = oldestDays >= (rules.block_after_days || 0);
+        }
+      } else {
+        shouldBeBlocked = overdueCount >= rules.block_after_count;
+      }
 
       if (shouldBeBlocked && !currentlyBlocked) {
         // Deve bloquear
@@ -742,15 +794,30 @@ class TraccarAutomationService {
       if (!integration) return; // Cliente não está bloqueado ou sem integração
 
       // Verifica se ainda existem pagamentos vencidos
-      const overdueCount = await Payment.count({
+      const overduePayments = await Payment.findAll({
         where: {
           client_id: clientId,
           status: 'OVERDUE'
-        }
+        },
+        order: [['due_date', 'ASC']]
       });
 
-      if (overdueCount < rules.block_after_count) {
-        logger.info(`Cliente ${integration.client.name} tem ${overdueCount} pagamentos em atraso (limite: ${rules.block_after_count}). Iniciando desbloqueio.`);
+      let canUnblock = false;
+      if (rules.block_strategy === 'days') {
+        if (overduePayments.length === 0) {
+          canUnblock = true;
+        } else {
+          const oldest = overduePayments[0];
+          const oldestDays = oldest ? Math.floor((Date.now() - new Date(oldest.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          canUnblock = oldestDays < (rules.block_after_days || 0);
+        }
+      } else {
+        const overdueCount = overduePayments.length;
+        canUnblock = overdueCount < rules.block_after_count;
+      }
+
+      if (canUnblock) {
+        logger.info(`Cliente ${integration.client.name} atende critérios para desbloqueio. Iniciando desbloqueio.`);
 
         // Inicializa TraccarService se necessário
         await TraccarService.initialize();

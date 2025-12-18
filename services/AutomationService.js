@@ -1,5 +1,5 @@
 const moment = require('moment');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const { Op } = require('sequelize');
 const { sequelize, Client, Payment, MessageLog, Config } = require('../models');
 const EvolutionService = require('./EvolutionService');
@@ -140,7 +140,7 @@ class AutomationService {
 
           // OTIMIZAÇÃO: Preparar dados para inserção em lote
           const messageLogData = {
-            id: uuidv4(),
+            id: randomUUID(),
             client_id: client.id,
             payment_id: payment.id,
             phone_number: phoneNumber,
@@ -311,7 +311,7 @@ class AutomationService {
 
           // OTIMIZAÇÃO: Preparar dados para inserção em lote
           const messageLogData = {
-            id: uuidv4(),
+            id: randomUUID(),
             client_id: client.id,
             payment_id: payment.id,
             phone_number: phoneNumber,
@@ -457,7 +457,7 @@ class AutomationService {
 
           // OTIMIZAÇÃO: Preparar dados para inserção em lote
           const messageLogData = {
-            id: uuidv4(),
+            id: randomUUID(),
             client_id: client.id,
             payment_id: payment.id,
             phone_number: phoneNumber,

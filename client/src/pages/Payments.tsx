@@ -91,19 +91,21 @@ export const Payments: React.FC = () => {
     },
   });
 
-  const {
+  const [sortModel, setSortModel] = useState([{ field: 'due_date', sort: 'asc' as const }]);
+
+ const {
     data: paymentsData,
     isLoading,
     refetch,
     error,
   } = useQuery(
-    ['payments', { page: page + 1, limit: pageSize, search, status, dateFrom, dateTo }],
+    ['payments', { page: page + 1, limit: pageSize, search, status, dateFrom, dateTo, sortBy: sortModel[0]?.field, sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase() }],
     () => {
       const params: any = { 
         page: page + 1, 
         limit: pageSize,
-        sortBy: 'due_date',
-        sortOrder: 'ASC' // Mostrar vencimentos mais próximos primeiro
+        sortBy: sortModel[0]?.field || 'due_date',
+        sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase()
       };
       
       if (search) params.search = search;
@@ -434,6 +436,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
   ];
 
   const payments = paymentsData?.data?.payments || [];
+  const totalsByStatus = paymentsData?.data?.totalsByStatus || {};
   const pagination = paymentsData?.data?.pagination || {};
 
   // Debug info
@@ -482,10 +485,10 @@ Estamos aqui para ajudar no que precisar! 🤝`;
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
+            <CardContent sx={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => setStatus('PENDING')}>
               <PaymentIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
               <Typography variant="h6">
-                {payments.filter((p: any) => p.status === 'PENDING').length}
+                {totalsByStatus['PENDING'] ?? payments.filter((p: any) => p.status === 'PENDING').length}
               </Typography>
               <Typography variant="body2" color="textSecondary">
                 Pendentes
@@ -495,10 +498,10 @@ Estamos aqui para ajudar no que precisar! 🤝`;
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
+            <CardContent sx={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => setStatus('OVERDUE')}>
               <Warning color="error" sx={{ fontSize: 40, mb: 1 }} />
               <Typography variant="h6">
-                {payments.filter((p: any) => p.status === 'OVERDUE').length}
+                {totalsByStatus['OVERDUE'] ?? payments.filter((p: any) => p.status === 'OVERDUE').length}
               </Typography>
               <Typography variant="body2" color="textSecondary">
                 Vencidos
@@ -527,11 +530,14 @@ Estamos aqui para ajudar no que precisar! 🤝`;
             <CardContent sx={{ textAlign: 'center' }}>
               <CheckCircle color="success" sx={{ fontSize: 40, mb: 1 }} />
               <Typography variant="h6" color="success.main">
-                {formatCurrency(
-                  payments
-                    .filter((p: any) => ['RECEIVED', 'CONFIRMED'].includes(p.status))
-                    .reduce((sum: number, p: any) => sum + parseFloat(p.value || 0), 0)
-                )}
+                {(() => {
+                  // Mantemos o valor da página atual por enquanto; a API atual não retorna soma por status.
+                  return formatCurrency(
+                    payments
+                      .filter((p: any) => ['RECEIVED', 'CONFIRMED'].includes(p.status))
+                      .reduce((sum: number, p: any) => sum + parseFloat(p.value || 0), 0)
+                  );
+                })()}
               </Typography>
               <Typography variant="body2" color="textSecondary">
                 Recebido
@@ -617,11 +623,14 @@ Estamos aqui para ajudar no que precisar! 🤝`;
       {/* Data Grid */}
       <Card>
         <CardContent sx={{ p: 0 }}>
-          <ResponsiveDataGrid
+         <ResponsiveDataGrid
             rows={payments}
             columns={columns}
             loading={isLoading}
             paginationMode="server"
+            sortingMode="server"
+            sortModel={sortModel}
+            onSortModelChange={(model) => { setSortModel(model as any); setPage(0); }}
             rowCount={pagination.total_items || 0}
             paginationModel={{ page, pageSize }}
             onPaginationModelChange={(model) => {

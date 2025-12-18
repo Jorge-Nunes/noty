@@ -56,11 +56,18 @@ router.get('/', authMiddleware, async (req, res) => {
       whereClause.is_active = status === 'active';
     }
 
+    // Sanitize sort fields to prevent invalid columns
+    const allowedSortFields = [
+      'name','email','phone','cpf_cnpj','company','city','state','is_active','notifications_enabled','created_at','updated_at'
+    ];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'name';
+    const sortDir = ['ASC','DESC'].includes(String(sortOrder).toUpperCase()) ? String(sortOrder).toUpperCase() : 'ASC';
+
     const { count, rows } = await Client.findAndCountAll({
       where: whereClause,
       limit: parseInt(limit),
       offset: offset,
-      order: [[sortBy, sortOrder.toUpperCase()]],
+      order: [[sortField, sortDir]],
       include: [
         {
           model: Payment,

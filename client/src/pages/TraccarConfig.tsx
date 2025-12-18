@@ -43,7 +43,10 @@ interface TraccarConfig {
   traccar_token_display?: string;
   traccar_enabled: boolean;
   auto_block_enabled: boolean;
+  block_strategy?: 'count' | 'days';
   block_after_count: number;
+  warn_after_days?: number;
+  block_after_days?: number;
   unblock_on_payment: boolean;
   traccar_notifications_enabled: boolean;
   whitelist_clients: string[];
@@ -68,7 +71,10 @@ const TraccarConfig: React.FC = () => {
     traccar_token: '',
     traccar_enabled: false,
     auto_block_enabled: true,
+    block_strategy: 'count',
     block_after_count: 3,
+    warn_after_days: 5,
+    block_after_days: 10,
     unblock_on_payment: true,
     traccar_notifications_enabled: true,
     whitelist_clients: []
@@ -124,7 +130,10 @@ const TraccarConfig: React.FC = () => {
         traccar_enabled: config.traccar_enabled,
         rules: {
           auto_block_enabled: config.auto_block_enabled,
+          block_strategy: config.block_strategy || 'count',
           block_after_count: config.block_after_count,
+          warn_after_days: config.warn_after_days || 5,
+          block_after_days: config.block_after_days || 10,
           unblock_on_payment: config.unblock_on_payment,
           whitelist_clients: config.whitelist_clients,
           traccar_notifications_enabled: config.traccar_notifications_enabled
@@ -470,21 +479,71 @@ const TraccarConfig: React.FC = () => {
                   <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
-                      type="number"
-                      label="Quantidade de Cobranças em Atraso"
-                      value={config.block_after_count}
-                      onChange={(e) => setConfig({ ...config, block_after_count: parseInt(e.target.value) || 0 })}
-                      helperText="Bloquear automaticamente após X cobranças em atraso (independente de valor ou tempo)"
+                      select
+                      label="Estratégia de Bloqueio"
+                      value={config.block_strategy || 'count'}
+                      onChange={(e) => setConfig({ ...config, block_strategy: e.target.value as any })}
+                      helperText="Selecione se o bloqueio será por quantidade de cobranças ou por dias de atraso"
+                      SelectProps={{ native: true }}
                       disabled={!config.auto_block_enabled}
-                      inputProps={{ min: 1, max: 20 }}
-                    />
+                    >
+                      <option value="count">Por quantidade de cobranças</option>
+                      <option value="days">Por dias de atraso</option>
+                    </TextField>
                   </Grid>
+
+                  { (config.block_strategy || 'count') === 'count' ? (
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="Quantidade de Cobranças em Atraso"
+                        value={config.block_after_count}
+                        onChange={(e) => setConfig({ ...config, block_after_count: parseInt(e.target.value) || 0 })}
+                        helperText="Bloquear automaticamente após X cobranças em atraso"
+                        disabled={!config.auto_block_enabled}
+                        inputProps={{ min: 1, max: 20 }}
+                      />
+                    </Grid>
+                  ) : (
+                    <>
+                      <Grid item xs={12} md={3}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Aviso após (dias)"
+                          value={config.warn_after_days || 0}
+                          onChange={(e) => setConfig({ ...config, warn_after_days: parseInt(e.target.value) || 0 })}
+                          helperText="Enviar aviso quando o atraso atingir X dias"
+                          disabled={!config.auto_block_enabled}
+                          inputProps={{ min: 1, max: 365 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={3}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Bloquear após (dias)"
+                          value={config.block_after_days || 0}
+                          onChange={(e) => setConfig({ ...config, block_after_days: parseInt(e.target.value) || 0 })}
+                          helperText="Bloquear automaticamente após X dias do primeiro vencimento"
+                          disabled={!config.auto_block_enabled}
+                          inputProps={{ min: 1, max: 365 }}
+                        />
+                      </Grid>
+                    </>
+                  ) }
 
                   <Grid item xs={12} md={6}>
                     <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
                       <Typography variant="body2" color="info.dark">
-                        📋 <strong>Lógica Simplificada</strong><br />
-                        O bloqueio será acionado automaticamente quando o cliente tiver <strong>{config.block_after_count || 3} ou mais faturas em atraso</strong>, independentemente do valor ou tempo de vencimento.
+                        { (config.block_strategy || 'count') === 'count' ? (
+                          <>📋 <strong>Estratégia: Por quantidade</strong><br />
+                          O bloqueio será acionado automaticamente quando houver <strong>{config.block_after_count || 3} ou mais</strong> faturas em atraso.</>
+                        ) : (
+                          <>📋 <strong>Estratégia: Por dias</strong><br />
+                          Envia aviso com <strong>{config.warn_after_days || 0} dias de atraso</strong> e bloqueia com <strong>{config.block_after_days || 0} dias de atraso</strong>.</>
+                        )}
                       </Typography>
                     </Box>
                   </Grid>

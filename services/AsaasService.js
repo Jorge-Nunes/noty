@@ -9,6 +9,13 @@ class AsaasService {
     this.initialized = false;
   }
 
+  // Invalidate cached configuration so next request reloads from DB
+  invalidate() {
+    this.baseURL = null;
+    this.accessToken = null;
+    this.initialized = false;
+  }
+
   async initialize() {
     try {
       const urlConfig = await Config.findOne({ where: { key: 'asaas_api_url' } });
@@ -136,7 +143,7 @@ class AsaasService {
           asaas_id: asaasCustomer.id,
           name: asaasCustomer.name,
           email: asaasCustomer.email || null,
-          phone: asaasCustomer.phone || asaasCustomer.mobilePhone,
+          phone: asaasCustomer.phone || asaasCustomer.mobilePhone || null,
           mobile_phone: asaasCustomer.mobilePhone,
           cpf_cnpj: asaasCustomer.cpfCnpj,
           company: asaasCustomer.company,
@@ -204,7 +211,8 @@ class AsaasService {
           original_due_date: asaasPayment.originalDueDate,
           payment_date: asaasPayment.paymentDate,
           client_payment_date: asaasPayment.clientPaymentDate,
-          installment: asaasPayment.installment || 1,
+          // Asaas: 'installment' é o ID do plano (string); 'installmentNumber' é o número da parcela (inteiro)
+          installment: parseInt(asaasPayment.installmentNumber || 1, 10),
           external_reference: asaasPayment.externalReference,
           notification_disabled: asaasPayment.notificationDisabled || false,
           authorized_only: asaasPayment.authorizedOnly || false,

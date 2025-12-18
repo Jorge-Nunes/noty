@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NOTY • Automação de Cobranças para Traccar</title>
+  <meta name="description" content="NOTY automatiza cobranças, avisos e bloqueios/desbloqueios no Traccar com reconciliação em tempo real via Asaas. Reduza inadimplência e ganhe eficiência." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="#top" aria-label="NOTY Home">
+        <svg class="logo" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#7C3AED"/>
+              <stop offset="100%" stop-color="#06B6D4"/>
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="40" height="40" rx="10" fill="url(#g1)"/>
+          <path d="M15 30l7-12 6 8 5-7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>NOTY</span>
+      </a>
+      <nav id="nav" class="nav">
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#integracoes">Integrações</a>
+        <a href="#beneficios">Benefícios</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contato" class="btn btn-sm btn-primary">Falar com vendas</a>
+      </nav>
+      <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container grid-2">
+        <div class="hero-copy">
+          <h1>Automação de Cobranças e Bloqueios para Traccar</h1>
+          <p class="lead">Reduza a inadimplência com avisos estratégicos, bloqueio/desbloqueio automático e reconciliação em tempo real com o Asaas. Tudo com logs, auditoria e painel moderno.</p>
+          <div class="hero-ctas">
+            <a href="#contato" class="btn btn-lg btn-primary">Quero vender mais</a>
+            <a href="#funcionalidades" class="btn btn-lg btn-ghost">Ver funcionalidades</a>
+          </div>
+          <ul class="hero-bullets">
+            <li>Reconciliação em tempo real (webhook Asaas)</li>
+            <li>Escalonamento inteligente de avisos</li>
+            <li>Bloqueio/Desbloqueio automático no Traccar</li>
+            <li>Templates editáveis e deduplicação de mensagens</li>
+          </ul>
+        </div>
+        <div class="hero-media">
+          <div class="glass card-preview">
+            <div class="stat">
+              <div>
+                <span class="stat-label">Webhook Health</span>
+                <span class="badge success">Online</span>
+              </div>
+              <div class="stat-value"><strong>~0.8s</strong> tempo médio</div>
+            </div>
+            <div class="divider"></div>
+            <div class="stat-list">
+              <div class="stat-item"><span>PAYMENT_RECEIVED</span><span class="kpi kpi-up">+12</span></div>
+              <div class="stat-item"><span>PAYMENT_OVERDUE</span><span class="kpi kpi-warn">+5</span></div>
+              <div class="stat-item"><span>BLOCKED</span><span class="kpi">3</span></div>
+              <div class="stat-item"><span>UNBLOCKED</span><span class="kpi">7</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="funcionalidades" class="section">
+      <div class="container">
+        <h2>Funcionalidades</h2>
+        <p class="section-lead">Tudo o que você precisa para profissionalizar a gestão de cobranças e a operação do seu Traccar.</p>
+        <div class="features-grid">
+          <div class="feature">
+            <h3>Reconciliação em Tempo Real</h3>
+            <p>Quando o cliente paga, o NOTY recebe o webhook do Asaas e executa o desbloqueio no Traccar em até 1 segundo. Sem esperas.</p>
+          </div>
+          <div class="feature">
+            <h3>Escalonamento de Avisos</h3>
+            <p>Avisos estratégicos apenas no limiar antes do bloqueio. Sem redundância de mensagens no momento do bloqueio.</p>
+          </div>
+          <div class="feature">
+            <h3>Bloqueio/Desbloqueio Automático</h3>
+            <p>Aplica bloqueios quando o limite de cobranças vencidas é atingido e remove automaticamente ao regularizar.</p>
+          </div>
+          <div class="feature">
+            <h3>Templates Editáveis</h3>
+            <p>Modelos de mensagem por tipo de evento (aviso limiar, aviso final, bloqueio). Placeholders dinâmicos e fallback inteligente.</p>
+          </div>
+          <div class="feature">
+            <h3>Painel e Logs</h3>
+            <p>Dashboard com métricas, card de Webhooks, atividades recentes e <em>WebhookLog</em> para auditoria completa.</p>
+          </div>
+          <div class="feature">
+            <h3>Sincronização de Cobranças</h3>
+            <p>Importa e atualiza cobranças do Asaas, com processamento em lote e resiliência a falhas individuais.</p>
+          </div>
+          <div class="feature">
+            <h3>Deduplicação Inteligente</h3>
+            <p>Evita reenvio de avisos do mesmo tipo por janela de tempo, reduzindo ruído para os clientes.</p>
+          </div>
+          <div class="feature">
+            <h3>Perfis e Acesso Seguro</h3>
+            <p>Autenticação, perfis de usuário e controle de acesso para operadores e administradores.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="integracoes" class="section alt">
+      <div class="container">
+        <h2>Integrações</h2>
+        <div class="integrations">
+          <div class="integration">
+            <div class="icon">💳</div>
+            <div>
+              <h3>Asaas (Pagamentos)</h3>
+              <p>Conexão direta via API e Webhooks: criação/atualização de cobranças, eventos de pagamento e status em tempo real.</p>
+            </div>
+          </div>
+          <div class="integration">
+            <div class="icon">📡</div>
+            <div>
+              <h3>Traccar (Rastreamento)</h3>
+              <p>Ações de bloqueio/desbloqueio, reconciliação por cliente, batch processing e múltiplas instâncias configuráveis.</p>
+            </div>
+          </div>
+          <div class="integration">
+            <div class="icon">💬</div>
+            <div>
+              <h3>WhatsApp (Evolution API)</h3>
+              <p>Envio de mensagens transacionais para avisos e cobranças via Evolution API. Opcional e configurável.</p>
+            </div>
+          </div>
+          <div class="integration">
+            <div class="icon">🔐</div>
+            <div>
+              <h3>Autenticação JWT</h3>
+              <p>APIs seguras para operações administrativas e integração com o frontend moderno.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="beneficios" class="section">
+      <div class="container">
+        <h2>Benefícios para sua operação</h2>
+        <div class="benefits grid-3">
+          <div class="benefit">
+            <h3>Menos Inadimplência</h3>
+            <p>Avisos certos, na hora certa, e bloqueio automático reduzem o atraso e recuperam receita rapidamente.</p>
+          </div>
+          <div class="benefit">
+            <h3>Tempo de Resposta</h3>
+            <p>De 2 horas para menos de 1 segundo entre pagamento e desbloqueio. Experiência premium para o seu cliente.</p>
+          </div>
+          <div class="benefit">
+            <h3>Operação Enxuta</h3>
+            <p>Menos chamadas no suporte e menos intervenções manuais. Foco no crescimento do negócio.</p>
+          </div>
+          <div class="benefit">
+            <h3>Auditoria Completa</h3>
+            <p>Logs estruturados de webhooks, mensagens e ações no Traccar para total transparência.</p>
+          </div>
+          <div class="benefit">
+            <h3>Configuração Flexível</h3>
+            <p>Limites por cliente, templates personalizáveis e múltiplas integrações opcionais.</p>
+          </div>
+          <div class="benefit">
+            <h3>Escalabilidade</h3>
+            <p>Processamento em lote, resiliência a falhas e arquitetura pronta para alto volume.</p>
+          </div>
+        </div>
+        <div class="cta-wide">
+          <h3>Pronto para vender mais e reduzir churn?</h3>
+          <a href="#contato" class="btn btn-primary btn-lg">Falar com especialista</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="section alt">
+      <div class="container">
+        <h2>Como funciona</h2>
+        <div class="timeline">
+          <div class="step">
+            <span class="step-index">1</span>
+            <div>
+              <h3>Conecte suas APIs</h3>
+              <p>Configure o token do Asaas, dados do Traccar e (opcional) a Evolution API. Teste a conexão direto do painel.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-index">2</span>
+            <div>
+              <h3>Sincronize cobranças</h3>
+              <p>Importe seus clientes e cobranças. O sistema mantém tudo atualizado automaticamente.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-index">3</span>
+            <div>
+              <h3>Ative a automação</h3>
+              <p>Defina limites por cliente, personalize templates e ligue a reconciliação em tempo real.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-index">4</span>
+            <div>
+              <h3>Monitore e otimize</h3>
+              <p>Acompanhe métricas no dashboard, atividades de webhook e resultados de bloqueio/desbloqueio.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="provas" class="section">
+      <div class="container">
+        <h2>O que torna o NOTY diferente</h2>
+        <ul class="pill-list">
+          <li>Reconciliação realtime (webhook Asaas)</li>
+          <li>Escalonamento inteligente de avisos (limiar)</li>
+          <li>Deduplicação por tipo de aviso</li>
+          <li>Batch processing com controle de concorrência</li>
+          <li>Logs e auditoria completa (WebhookLog)</li>
+          <li>Interface moderna e responsiva</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="faq" class="section alt">
+      <div class="container">
+        <h2>Perguntas frequentes</h2>
+        <div class="faq">
+          <details>
+            <summary>O NOTY funciona com qualquer instância do Traccar?</summary>
+            <p>Sim. Basta informar a URL e credenciais da sua instância. É possível operar múltiplas instâncias conforme a sua necessidade.</p>
+          </details>
+          <details>
+            <summary>Preciso do Asaas para usar o NOTY?</summary>
+            <p>Recomendamos o Asaas para obter reconciliação em tempo real via webhook. Porém, é possível usar apenas o Traccar e gerenciar cobranças manualmente.</p>
+          </details>
+          <details>
+            <summary>Como são enviados os avisos?</summary>
+            <p>Os avisos podem ser enviados via WhatsApp pela Evolution API. Você define os templates e o sistema evita mensagens redundantes.</p>
+          </details>
+          <details>
+            <summary>É seguro?</summary>
+            <p>Sim. O backend utiliza autenticação JWT, registra logs de todas as ações e oferece controle de acesso por perfil.</p>
+          </details>
+          <details>
+            <summary>Qual é o tempo de desbloqueio após pagamento?</summary>
+            <p>Em média abaixo de 1 segundo quando o evento é recebido via webhook do Asaas.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="contato" class="section contact">
+      <div class="container grid-2">
+        <div>
+          <h2>Fale com vendas</h2>
+          <p>Quer reduzir inadimplência e ganhar eficiência na sua plataforma? Envie seus dados e entraremos em contato.</p>
+          <ul class="contact-bullets">
+            <li>Implantação guiada</li>
+            <li>Treinamento para equipe</li>
+            <li>Suporte prioritário</li>
+          </ul>
+        </div>
+        <form class="contact-form" onsubmit="return false;">
+          <label>Nome
+            <input type="text" placeholder="Seu nome" required />
+          </label>
+          <label>E-mail
+            <input type="email" placeholder="voce@empresa.com" required />
+          </label>
+          <label>WhatsApp
+            <input type="tel" placeholder="(00) 90000-0000" />
+          </label>
+          <label>Quantidade de dispositivos
+            <select>
+              <option>Até 100</option>
+              <option>101–500</option>
+              <option>501–2.000</option>
+              <option>2.001–10.000</option>
+              <option>10.000+</option>
+            </select>
+          </label>
+          <button class="btn btn-primary btn-lg" id="btn-demo">Quero uma demonstração</button>
+          <p class="form-feedback" id="form-feedback" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <a class="brand" href="#top">
+          <svg class="logo" viewBox="0 0 48 48" width="24" height="24" aria-hidden="true">
+            <defs>
+              <linearGradient id="g2" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#7C3AED"/>
+                <stop offset="100%" stop-color="#06B6D4"/>
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="40" height="40" rx="10" fill="url(#g2)"/>
+            <path d="M15 30l7-12 6 8 5-7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>NOTY</span>
+        </a>
+        <p class="muted">Automação de cobranças para plataformas de rastreamento baseadas em Traccar.</p>
+      </div>
+      <nav class="footer-nav">
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#integracoes">Integrações</a>
+        <a href="#beneficios">Benefícios</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="footer-cta">
+        <a href="#contato" class="btn btn-primary">Falar com vendas</a>
+        <p class="small muted">© NOTY. Todos os direitos reservados.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

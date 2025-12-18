@@ -3,6 +3,14 @@ const { Config } = require('../models');
 const logger = require('../utils/logger');
 
 class EvolutionService {
+  // Invalida cache para forçar recarga das configurações na próxima chamada
+  invalidate() {
+    this.baseURL = null;
+    this.apiKey = null;
+    this.instance = null;
+    this.initialized = false;
+  }
+
   constructor() {
     this.baseURL = null;
     this.apiKey = null;

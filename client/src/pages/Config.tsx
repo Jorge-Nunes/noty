@@ -132,6 +132,14 @@ export const Config: React.FC = () => {
   };
 
   const renderConfigField = (config: any) => {
+    // Ocultar campos sem descrição
+    if (!config.description || !config.description.trim()) {
+      return null;
+    }
+
+    const label = config.description;
+    const showHelper = false;
+
     switch (config.type) {
       case 'boolean':
         return (
@@ -143,7 +151,7 @@ export const Config: React.FC = () => {
                 onChange={(e) => handleConfigChange(config.key, e.target.checked ? 'true' : 'false')}
               />
             }
-            label={config.description}
+            label={label}
           />
         );
       case 'number':
@@ -151,11 +159,12 @@ export const Config: React.FC = () => {
           <TextField
             key={config.key}
             fullWidth
-            label={config.description}
+            label={label}
             type="number"
             value={configs[config.key] || ''}
             onChange={(e) => handleConfigChange(config.key, e.target.value)}
             margin="normal"
+            helperText={showHelper ? `Chave: ${config.key}` : undefined}
           />
         );
       default:
@@ -163,13 +172,14 @@ export const Config: React.FC = () => {
           <TextField
             key={config.key}
             fullWidth
-            label={config.description}
+            label={label}
             type={config.key.includes('password') || config.key.includes('token') || config.key.includes('key') ? 'password' : 'text'}
             value={configs[config.key] || ''}
             onChange={(e) => handleConfigChange(config.key, e.target.value)}
             margin="normal"
             multiline={config.key.includes('message')}
             rows={config.key.includes('message') ? 4 : 1}
+            helperText={showHelper ? `Chave: ${config.key}` : undefined}
           />
         );
     }

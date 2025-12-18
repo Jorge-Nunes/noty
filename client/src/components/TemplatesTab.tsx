@@ -183,10 +183,11 @@ export const TemplatesTab: React.FC = () => {
 
   const handleSaveTemplate = () => {
     if (!selectedType) return;
-    
+
+    // Enviar apenas o campo necessário para a API
     saveTemplateMutation.mutate({
       type: selectedType,
-      data: formData
+      data: { template: formData.template }
     });
   };
 

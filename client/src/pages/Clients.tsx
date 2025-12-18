@@ -71,6 +71,7 @@ export const Clients: React.FC = () => {
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  const [sortModel, setSortModel] = useState([{ field: 'name', sort: 'asc' as const }]);
   
   // Dialog states
   const [viewDialog, setViewDialog] = useState(false);
@@ -145,8 +146,8 @@ export const Clients: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery(
-    ['clients', { page: page + 1, limit: pageSize, search, status }],
-    () => clientsAPI.getAll({ page: page + 1, limit: pageSize, search, status }),
+    ['clients', { page: page + 1, limit: pageSize, search, status, sortBy: sortModel[0]?.field, sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase() }],
+    () => clientsAPI.getAll({ page: page + 1, limit: pageSize, search, status, sortBy: sortModel[0]?.field, sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase() }),
     { keepPreviousData: true }
   );
 
@@ -255,12 +256,14 @@ export const Clients: React.FC = () => {
       field: 'payments',
       headerName: 'Pagamentos',
       width: 120,
+      sortable: false,
       renderCell: (params) => params.value?.length || 0,
     },
     {
       field: 'traccar_status',
       headerName: 'Traccar',
       width: 120,
+      sortable: false,
       renderCell: (params) => (
         <TraccarStatusIcon 
           integration={params.row.TraccarIntegration} 
@@ -273,6 +276,7 @@ export const Clients: React.FC = () => {
       field: 'traccar_actions',
       headerName: 'Traccar Ações',
       width: 80,
+      sortable: false,
       renderCell: (params) => (
         <TraccarActions 
           client={params.row} 
@@ -341,7 +345,7 @@ export const Clients: React.FC = () => {
                 fullWidth
                 placeholder="Pesquisar clientes..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(0); }}
                 InputProps={{
                   startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />,
                 }}
@@ -355,7 +359,7 @@ export const Clients: React.FC = () => {
                 <Select
                   value={status}
                   label="Status"
-                  onChange={(e) => setStatus(e.target.value)}
+                  onChange={(e) => { setStatus(e.target.value); setPage(0); }}
                 >
                   <MenuItem value="all">Todos</MenuItem>
                   <MenuItem value="active">Ativos</MenuItem>
@@ -387,6 +391,12 @@ export const Clients: React.FC = () => {
             columns={columns}
             loading={isLoading}
             paginationMode="server"
+            sortingMode="server"
+            sortModel={sortModel}
+            onSortModelChange={(model) => {
+              setSortModel(model as any);
+              setPage(0);
+            }}
             rowCount={pagination.total_items || 0}
             paginationModel={{ page, pageSize }}
             onPaginationModelChange={(model) => {

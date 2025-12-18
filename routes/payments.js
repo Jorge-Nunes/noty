@@ -62,11 +62,33 @@ router.get('/', authMiddleware, async (req, res) => {
       };
     }
 
+    // Totais por status (sem paginação), respeitando filtros de data e busca
+    const totalsRaw = await Payment.findAll({
+      where: whereClause,
+      attributes: [
+        'status',
+        [Payment.sequelize.fn('COUNT', Payment.sequelize.col('id')), 'count']
+      ],
+      include: search ? [includeClause] : [],
+      group: ['status'],
+      raw: true
+    });
+    const totalsByStatus = totalsRaw.reduce((acc, cur) => { acc[cur.status] = parseInt(cur.count, 10); return acc; }, {});
+
+    // Sanitize sort fields and support sorting by client name
+    const allowedSortFields = ['due_date','value','status','billing_type','description','warning_count','created_at','updated_at','client'];
+    const sortFieldRaw = allowedSortFields.includes(sortBy) ? sortBy : 'due_date';
+    const sortDir = ['ASC','DESC'].includes(String(sortOrder).toUpperCase()) ? String(sortOrder).toUpperCase() : 'ASC';
+
+    const orderClause = sortFieldRaw === 'client' 
+      ? [[{ model: Client, as: 'client' }, 'name', sortDir]]
+      : [[sortFieldRaw, sortDir]];
+
     const { count, rows } = await Payment.findAndCountAll({
       where: whereClause,
       limit: parseInt(limit),
       offset: offset,
-      order: [[sortBy, sortOrder.toUpperCase()]],
+      order: orderClause,
       include: [
         includeClause,
         {
@@ -89,7 +111,8 @@ router.get('/', authMiddleware, async (req, res) => {
           total_pages: Math.ceil(count / parseInt(limit)),
           total_items: count,
           items_per_page: parseInt(limit)
-        }
+        },
+        totalsByStatus
       }
     });
 

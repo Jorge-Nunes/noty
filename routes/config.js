@@ -218,6 +218,48 @@ router.put('/:key', authMiddleware, adminMiddleware, async (req, res) => {
 
     await config.update(value);
 
+    // Invalidate Asaas service cache if Asaas credentials/URL changed
+    try {
+      if (['asaas_api_url', 'asaas_access_token'].includes(config.key)) {
+        const AsaasService = require('../services/AsaasService');
+        AsaasService.invalidate();
+        logger.info('AsaasService cache invalidated after config change');
+      }
+    } catch (invalidateError) {
+      logger.error('Error invalidating AsaasService cache:', invalidateError);
+    }
+
+    // Apply config changes instantly across services
+    try {
+      const updatedKey = config.key;
+      // Evolution: invalidate to force reload on next call (or reinit now if desired)
+      if (['evolution_api_url', 'evolution_api_key', 'evolution_instance'].includes(updatedKey)) {
+        const EvolutionService = require('../services/EvolutionService');
+        EvolutionService.invalidate();
+        logger.info('EvolutionService invalidated after config change');
+      }
+      // Traccar notifications service depends on these keys
+      if (['company_name', 'company_phone', 'traccar_url', 'traccar_notifications_enabled'].includes(updatedKey)) {
+        const TraccarNotificationService = require('../services/TraccarNotificationService');
+        await TraccarNotificationService.initialize();
+        logger.info('TraccarNotificationService reloaded after config change');
+      }
+      // Scheduler: reschedule when automation time/hour changes
+      if (['automation_time_pending', 'automation_time_overdue', 'automation_hour_pending', 'automation_hour_overdue'].includes(updatedKey)) {
+        const SchedulerService = require('../services/SchedulerService');
+        await SchedulerService.updateSchedules();
+        logger.info('SchedulerService schedules updated after config change');
+      }
+      // Traccar: reinitialize when its core config changes
+      if (['traccar_url', 'traccar_token', 'traccar_enabled'].includes(updatedKey)) {
+        const TraccarService = require('../services/TraccarService');
+        await TraccarService.initialize();
+        logger.info('TraccarService reinitialized after config change');
+      }
+    } catch (applyError) {
+      logger.error('Error applying config changes instantly:', applyError);
+    }
+
     logger.info(`Configuration updated: ${config.key} by ${req.user.email}`);
 
     res.json({
@@ -294,19 +336,51 @@ router.put('/bulk/update', authMiddleware, adminMiddleware, async (req, res) => 
 
     logger.info(`Bulk configuration update by ${req.user.email}: ${JSON.stringify(results)}`);
 
-    // Check if automation schedules were updated and trigger reschedule
-    const automationUpdates = configs.filter(config => 
-      config.key.includes('automation_time') || config.key.includes('automation_hour')
-    );
-    
-    if (automationUpdates.length > 0) {
-      try {
+    // If Asaas configs were part of the bulk update, invalidate cache
+    try {
+      const updatedKeys = configs.map(c => c.key);
+      if (updatedKeys.includes('asaas_api_url') || updatedKeys.includes('asaas_access_token')) {
+        const AsaasService = require('../services/AsaasService');
+        AsaasService.invalidate();
+        logger.info('AsaasService cache invalidated after bulk config update');
+      }
+    } catch (invalidateError) {
+      logger.error('Error invalidating AsaasService cache after bulk update:', invalidateError);
+    }
+
+    // Apply bulk changes instantly across services
+    try {
+      const updatedKeys = configs.map(c => c.key);
+
+      // Evolution
+      if (updatedKeys.some(k => ['evolution_api_url', 'evolution_api_key', 'evolution_instance'].includes(k))) {
+        const EvolutionService = require('../services/EvolutionService');
+        EvolutionService.invalidate();
+        logger.info('EvolutionService invalidated after bulk config update');
+      }
+
+      // Traccar notifications
+      if (updatedKeys.some(k => ['company_name', 'company_phone', 'traccar_url', 'traccar_notifications_enabled'].includes(k))) {
+        const TraccarNotificationService = require('../services/TraccarNotificationService');
+        await TraccarNotificationService.initialize();
+        logger.info('TraccarNotificationService reloaded after bulk config update');
+      }
+
+      // Scheduler
+      if (updatedKeys.some(k => ['automation_time_pending', 'automation_time_overdue', 'automation_hour_pending', 'automation_hour_overdue'].includes(k))) {
         const SchedulerService = require('../services/SchedulerService');
         await SchedulerService.updateSchedules();
-        logger.info('Automation schedules updated after configuration change');
-      } catch (error) {
-        logger.error('Error updating schedules:', error);
+        logger.info('SchedulerService schedules updated after bulk config update');
       }
+
+      // Traccar core config
+      if (updatedKeys.some(k => ['traccar_url', 'traccar_token', 'traccar_enabled'].includes(k))) {
+        const TraccarService = require('../services/TraccarService');
+        await TraccarService.initialize();
+        logger.info('TraccarService reinitialized after bulk config update');
+      }
+    } catch (applyError) {
+      logger.error('Error applying bulk config changes instantly:', applyError);
     }
 
     res.json({
