@@ -88,6 +88,10 @@ router.get('/', authMiddleware, async (req, res) => {
       where: whereClause,
       limit: parseInt(limit),
       offset: offset,
+      // Evita duplicatas e ambiguidade de COUNT(id) em joins
+      distinct: true,
+      col: 'payments.id',
+      subQuery: false,
       order: orderClause,
       include: [
         includeClause,
