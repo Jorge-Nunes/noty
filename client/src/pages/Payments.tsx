@@ -313,8 +313,8 @@ Estamos aqui para ajudar no que precisar! 🤝`;
     {
       field: 'status',
       headerName: 'Status',
-      width: 130,
-      minWidth: 120,
+      width: 170,
+      minWidth: 160,
       renderCell: (params) => (
         <Box sx={{ 
           display: 'flex', 
