@@ -193,22 +193,39 @@ class AutomationService {
 
       // OTIMIZAÇÃO: Inserções e updates em lote usando transação
       if (messagesToCreate.length > 0) {
-        await sequelize.transaction(async (transaction) => {
-          // Bulk insert de message logs
-          await MessageLog.bulkCreate(messagesToCreate, { transaction });
+        // Validação defensiva: garantir que todos os payment_ids existem antes de inserir
+        const candidatePaymentIds = [...new Set(messagesToCreate.map(m => m.payment_id).filter(Boolean))];
+        const existingPayments = await Payment.findAll({ where: { id: { [Op.in]: candidatePaymentIds } }, attributes: ['id'] });
+        const existingPaymentIdSet = new Set(existingPayments.map(p => p.id));
 
-          // Bulk update de payments
-          for (const paymentUpdate of paymentsToUpdate) {
-            await Payment.update({
-              last_warning_sent: paymentUpdate.last_warning_sent,
-              warning_count: paymentUpdate.warning_count,
-              updated_at: paymentUpdate.updated_at
-            }, {
-              where: { id: paymentUpdate.id },
-              transaction
-            });
-          }
-        });
+        const filteredMessages = messagesToCreate.filter(m => !m.payment_id || existingPaymentIdSet.has(m.payment_id));
+        const filteredPaymentsToUpdate = paymentsToUpdate.filter(pu => existingPaymentIdSet.has(pu.id));
+
+        const skippedCount = messagesToCreate.length - filteredMessages.length;
+        if (skippedCount > 0) {
+          logger.warn(`Skipping ${skippedCount} message_log(s) due to missing payment_id reference`);
+        }
+
+        if (filteredMessages.length === 0) {
+          logger.warn('No valid message_logs to insert after payment_id validation');
+        } else {
+          await sequelize.transaction(async (transaction) => {
+            // Bulk insert de message logs
+            await MessageLog.bulkCreate(filteredMessages, { transaction });
+
+            // Bulk update de payments
+            for (const paymentUpdate of filteredPaymentsToUpdate) {
+              await Payment.update({
+                last_warning_sent: paymentUpdate.last_warning_sent,
+                warning_count: paymentUpdate.warning_count,
+                updated_at: paymentUpdate.updated_at
+              }, {
+                where: { id: paymentUpdate.id },
+                transaction
+              });
+            }
+          });
+        }
       }
 
       const summary = {
@@ -356,9 +373,24 @@ class AutomationService {
 
       // OTIMIZAÇÃO: Inserção em lote usando transação
       if (messagesToCreate.length > 0) {
-        await sequelize.transaction(async (transaction) => {
-          await MessageLog.bulkCreate(messagesToCreate, { transaction });
-        });
+        // Validação defensiva: garantir que todos os payment_ids existem antes de inserir
+        const candidatePaymentIds = [...new Set(messagesToCreate.map(m => m.payment_id).filter(Boolean))];
+        const existingPayments = await Payment.findAll({ where: { id: { [Op.in]: candidatePaymentIds } }, attributes: ['id'] });
+        const existingPaymentIdSet = new Set(existingPayments.map(p => p.id));
+
+        const filteredMessages = messagesToCreate.filter(m => !m.payment_id || existingPaymentIdSet.has(m.payment_id));
+        const skippedCount = messagesToCreate.length - filteredMessages.length;
+        if (skippedCount > 0) {
+          logger.warn(`Skipping ${skippedCount} message_log(s) due to missing payment_id reference`);
+        }
+
+        if (filteredMessages.length === 0) {
+          logger.warn('No valid message_logs to insert after payment_id validation');
+        } else {
+          await sequelize.transaction(async (transaction) => {
+            await MessageLog.bulkCreate(filteredMessages, { transaction });
+          });
+        }
       }
 
       const summary = {
@@ -508,22 +540,39 @@ class AutomationService {
 
       // OTIMIZAÇÃO: Inserções e updates em lote usando transação
       if (messagesToCreate.length > 0) {
-        await sequelize.transaction(async (transaction) => {
-          // Bulk insert de message logs
-          await MessageLog.bulkCreate(messagesToCreate, { transaction });
+        // Validação defensiva: garantir que todos os payment_ids existem antes de inserir
+        const candidatePaymentIds = [...new Set(messagesToCreate.map(m => m.payment_id).filter(Boolean))];
+        const existingPayments = await Payment.findAll({ where: { id: { [Op.in]: candidatePaymentIds } }, attributes: ['id'] });
+        const existingPaymentIdSet = new Set(existingPayments.map(p => p.id));
 
-          // Bulk update de payments
-          for (const paymentUpdate of paymentsToUpdate) {
-            await Payment.update({
-              last_overdue_sent: paymentUpdate.last_overdue_sent,
-              overdue_count: paymentUpdate.overdue_count,
-              updated_at: paymentUpdate.updated_at
-            }, {
-              where: { id: paymentUpdate.id },
-              transaction
-            });
-          }
-        });
+        const filteredMessages = messagesToCreate.filter(m => !m.payment_id || existingPaymentIdSet.has(m.payment_id));
+        const filteredPaymentsToUpdate = paymentsToUpdate.filter(pu => existingPaymentIdSet.has(pu.id));
+
+        const skippedCount = messagesToCreate.length - filteredMessages.length;
+        if (skippedCount > 0) {
+          logger.warn(`Skipping ${skippedCount} message_log(s) due to missing payment_id reference`);
+        }
+
+        if (filteredMessages.length === 0) {
+          logger.warn('No valid message_logs to insert after payment_id validation');
+        } else {
+          await sequelize.transaction(async (transaction) => {
+            // Bulk insert de message logs
+            await MessageLog.bulkCreate(filteredMessages, { transaction });
+
+            // Bulk update de payments
+            for (const paymentUpdate of filteredPaymentsToUpdate) {
+              await Payment.update({
+                last_overdue_sent: paymentUpdate.last_overdue_sent,
+                overdue_count: paymentUpdate.overdue_count,
+                updated_at: paymentUpdate.updated_at
+              }, {
+                where: { id: paymentUpdate.id },
+                transaction
+              });
+            }
+          });
+        }
       }
 
       const summary = {
