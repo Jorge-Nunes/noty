@@ -69,7 +69,8 @@ router.get('/', authMiddleware, async (req, res) => {
         'status',
         [Payment.sequelize.fn('COUNT', Payment.sequelize.col('payments.id')), 'count']
       ],
-      include: search ? [includeClause] : [],
+      // Join client only to filter (when searching), but do not project client columns to avoid GROUP BY errors
+      include: search ? [{ ...includeClause, attributes: [], required: true }] : [],
       group: ['payments.status'],
       raw: true
     });
