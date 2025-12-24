@@ -67,10 +67,10 @@ router.get('/', authMiddleware, async (req, res) => {
       where: whereClause,
       attributes: [
         'status',
-        [Payment.sequelize.fn('COUNT', Payment.sequelize.col('id')), 'count']
+        [Payment.sequelize.fn('COUNT', Payment.sequelize.col('payments.id')), 'count']
       ],
       include: search ? [includeClause] : [],
-      group: ['status'],
+      group: ['payments.status'],
       raw: true
     });
     const totalsByStatus = totalsRaw.reduce((acc, cur) => { acc[cur.status] = parseInt(cur.count, 10); return acc; }, {});
