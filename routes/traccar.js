@@ -4,6 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { Config, Client, TraccarIntegration } = require('../models');
 const TraccarService = require('../services/TraccarService');
 const TraccarNotificationService = require('../services/TraccarNotificationService');
+const PaymentQueries = require('../utils/paymentQueries');
 const logger = require('../utils/logger');
 const Joi = require('joi');
 
@@ -695,7 +696,7 @@ router.get('/clients/:clientId/debug', authMiddleware, async (req, res) => {
         {
           model: Payment,
           as: 'payments',
-          where: { status: 'OVERDUE' },
+          where: PaymentQueries.getOverdueCondition(),
           required: false
         }
       ]

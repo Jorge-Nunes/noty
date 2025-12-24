@@ -1,5 +1,6 @@
 const { Payment } = require('../models');
 const { Op } = require('sequelize');
+const PaymentQueries = require('../utils/paymentQueries');
 const logger = require('../utils/logger');
 const TraccarAutomationService = require('./TraccarAutomationService');
 
@@ -236,7 +237,7 @@ class PaymentStatusService {
             due_date: { [Op.lt]: now }
           }
         }),
-        overdue_total: await Payment.count({ where: { status: 'OVERDUE' } }),
+        overdue_total: await Payment.count({ where: PaymentQueries.getOverdueCondition() }),
         paid_total: await Payment.count({ where: { status: 'PAID' } }),
         last_update: new Date()
       };

@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const moment = require('moment');
 const { Client, Payment, MessageLog, AutomationLog } = require('../models');
 const { authMiddleware } = require('../middleware/auth');
+const PaymentQueries = require('../utils/paymentQueries');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -37,9 +38,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 
     // Overdue payments
     const overduePayments = await Payment.count({
-      where: {
-        status: 'OVERDUE'
-      }
+      where: PaymentQueries.getOverdueCondition()
     });
 
     // Payments due today

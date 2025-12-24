@@ -5,6 +5,7 @@ const { sequelize, Client, Payment, MessageLog, Config } = require('../models');
 const EvolutionService = require('./EvolutionService');
 const TemplateService = require('./TemplateService');
 const AsaasService = require('./AsaasService');
+const PaymentQueries = require('../utils/paymentQueries');
 const logger = require('../utils/logger');
 
 class AutomationService {
@@ -384,11 +385,9 @@ class AutomationService {
       // Sync payments with Asaas before processing
       await this.syncPaymentsBeforeAutomation('overdue notifications');
 
-      // Get overdue payments
+      // Get overdue payments (excludes RECEIVED_IN_CASH and other paid statuses)
       const payments = await Payment.findAll({
-        where: {
-          status: 'OVERDUE'
-        },
+        where: PaymentQueries.getOverdueCondition(),
         include: [{
           model: Client,
           as: 'client',

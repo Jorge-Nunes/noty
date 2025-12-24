@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const moment = require('moment');
 const { Payment, Client, MessageLog } = require('../models');
 const { authMiddleware } = require('../middleware/auth');
+const PaymentQueries = require('../utils/paymentQueries');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -211,9 +212,7 @@ router.get('/due/today', authMiddleware, async (req, res) => {
 router.get('/status/overdue', authMiddleware, async (req, res) => {
   try {
     const payments = await Payment.findAll({
-      where: {
-        status: 'OVERDUE'
-      },
+      where: PaymentQueries.getOverdueCondition(),
       include: [
         {
           model: Client,

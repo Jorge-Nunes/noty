@@ -1,6 +1,7 @@
 const { Client, Payment, Config, TraccarIntegration, AutomationLog } = require('../models');
 const TraccarService = require('./TraccarService');
 const TraccarNotificationService = require('./TraccarNotificationService');
+const PaymentQueries = require('../utils/paymentQueries');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
@@ -234,9 +235,7 @@ class TraccarAutomationService {
           include: [{
             model: Payment,
             as: 'payments',
-            where: {
-              status: 'OVERDUE'
-            },
+            where: PaymentQueries.getOverdueCondition(),
             required: true
           }]
         }]
@@ -307,9 +306,7 @@ class TraccarAutomationService {
           include: [{
             model: Payment,
             as: 'payments',
-            where: {
-              status: 'OVERDUE'
-            },
+            where: PaymentQueries.getOverdueCondition(),
             required: false
           }]
         }]
@@ -506,9 +503,7 @@ class TraccarAutomationService {
           include: [{
             model: Payment,
             as: 'payments',
-            where: {
-              status: 'OVERDUE'
-            },
+            where: PaymentQueries.getOverdueCondition(),
             required: true
           }]
         }]
@@ -637,7 +632,7 @@ class TraccarAutomationService {
           {
             model: Payment,
             as: 'payments',
-            where: { status: 'OVERDUE' },
+            where: PaymentQueries.getOverdueCondition(),
             required: false
           }
         ]
@@ -797,7 +792,7 @@ class TraccarAutomationService {
       const overduePayments = await Payment.findAll({
         where: {
           client_id: clientId,
-          status: 'OVERDUE'
+          ...PaymentQueries.getOverdueCondition()
         },
         order: [['due_date', 'ASC']]
       });
