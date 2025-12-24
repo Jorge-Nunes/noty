@@ -155,6 +155,7 @@ export const Payments: React.FC = () => {
     switch (status) {
       case 'RECEIVED':
       case 'CONFIRMED':
+      case 'RECEIVED_IN_CASH':
         return 'success';
       case 'PENDING':
         return 'warning';
@@ -541,7 +542,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
                   // Mantemos o valor da página atual por enquanto; a API atual não retorna soma por status.
                   return formatCurrency(
                     payments
-                      .filter((p: any) => ['RECEIVED', 'CONFIRMED'].includes(p.status))
+                      .filter((p: any) => ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(p.status))
                       .reduce((sum: number, p: any) => sum + parseFloat(p.value || 0), 0)
                   );
                 })()}
@@ -584,6 +585,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
                   <MenuItem value="OVERDUE">Vencido</MenuItem>
                   <MenuItem value="RECEIVED">Recebido</MenuItem>
                   <MenuItem value="CONFIRMED">Confirmado</MenuItem>
+                  <MenuItem value="RECEIVED_IN_CASH">Recebido em Dinheiro</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -759,6 +761,7 @@ Estamos aqui para ajudar no que precisar! 🤝`;
                   <MenuItem value="OVERDUE">Vencido</MenuItem>
                   <MenuItem value="RECEIVED">Recebido</MenuItem>
                   <MenuItem value="CONFIRMED">Confirmado</MenuItem>
+                  <MenuItem value="RECEIVED_IN_CASH">Recebido em Dinheiro</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
