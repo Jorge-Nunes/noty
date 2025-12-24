@@ -243,25 +243,30 @@ class AsaasService {
     try {
       logger.info('Starting full Asaas sync...');
 
-      // Sync customers first
+      // Sincroniza clientes primeiro
       const customersResult = await this.syncCustomers();
 
-      // Sync pending payments
+      // Sincroniza pagamentos por status para garantir atualização ampla
       const pendingPaymentsResult = await this.syncPayments('PENDING');
-
-      // Sync overdue payments
       const overduePaymentsResult = await this.syncPayments('OVERDUE');
-
-      // Sync received payments (last 30 days)
       const receivedPaymentsResult = await this.syncPayments('RECEIVED');
+      const confirmedPaymentsResult = await this.syncPayments('CONFIRMED');
+      const receivedInCashPaymentsResult = await this.syncPayments('RECEIVED_IN_CASH');
 
       const summary = {
         customers: customersResult,
         pending_payments: pendingPaymentsResult,
         overdue_payments: overduePaymentsResult,
         received_payments: receivedPaymentsResult,
+        confirmed_payments: confirmedPaymentsResult,
+        received_in_cash_payments: receivedInCashPaymentsResult,
         clientsCount: customersResult.total,
-        paymentsCount: pendingPaymentsResult.total + overduePaymentsResult.total + receivedPaymentsResult.total
+        paymentsCount:
+          pendingPaymentsResult.total +
+          overduePaymentsResult.total +
+          receivedPaymentsResult.total +
+          confirmedPaymentsResult.total +
+          receivedInCashPaymentsResult.total
       };
 
       logger.info('Full Asaas sync completed:', summary);

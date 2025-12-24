@@ -286,7 +286,14 @@ async function handlePaymentReceived(payment, templateType) {
 
 async function handlePaymentOverdue(payment) {
   try {
-    // Update status to overdue
+    // Não sobrescrever pagamentos já quitados
+    const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH', 'REFUNDED'];
+    if (paidStatuses.includes(payment.status)) {
+      logger.info(`Ignorando PAYMENT_OVERDUE para pagamento já quitado: ${payment.asaas_id} (status atual: ${payment.status})`);
+      return;
+    }
+
+    // Atualizar para OVERDUE somente se não quitado
     await payment.update({ status: 'OVERDUE' });
     logger.info('Payment marked as overdue:', payment.asaas_id);
   } catch (error) {
