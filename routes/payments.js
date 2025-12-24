@@ -90,7 +90,9 @@ router.get('/', authMiddleware, async (req, res) => {
       offset: offset,
       // Evita duplicatas e ambiguidade de COUNT(id) em joins
       distinct: true,
-      col: 'payments.id',
+      // Count should target the primary key of the base model; specifying table alias here
+      // may cause Sequelize to generate an invalid path alias like "payments->payments".
+      // Let Sequelize default to the base model PK by omitting `col`.
       subQuery: false,
       order: orderClause,
       include: [
