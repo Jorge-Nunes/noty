@@ -42,6 +42,7 @@ import { useSnackbar } from 'notistack';
 
 export const Payments: React.FC = () => {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -58,6 +59,12 @@ export const Payments: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   
   const { enqueueSnackbar } = useSnackbar();
+
+  // Debounce search input
+  useEffect(() => {
+    const h = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(h);
+  }, [search]);
 
   // Load company name
   useEffect(() => {
@@ -99,7 +106,7 @@ export const Payments: React.FC = () => {
     refetch,
     error,
   } = useQuery(
-    ['payments', { page: page + 1, limit: pageSize, search, status, dateFrom, dateTo, sortBy: sortModel[0]?.field, sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase() }],
+    ['payments', { page: page + 1, limit: pageSize, search: debouncedSearch, status, dateFrom, dateTo, sortBy: sortModel[0]?.field, sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase() }],
     () => {
       const params: any = { 
         page: page + 1, 
@@ -108,7 +115,7 @@ export const Payments: React.FC = () => {
         sortOrder: (sortModel[0]?.sort || 'asc').toUpperCase()
       };
       
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (status !== 'all') params.status = status;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
